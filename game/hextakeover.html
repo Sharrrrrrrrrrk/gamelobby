@@ -78,12 +78,12 @@ function goBack() {
         // 如果有 roomRef 且是房主才刪除，或是單機模式直接清理
         if(roomRef) {
             roomRef.remove().then(() => {
-                location.href = location.origin + '/index.html';
+                location.href = '/index.html';
             }).catch(() => {
-                location.href = location.origin + '/index.html';
+                location.href = '/index.html';
             });
         } else {
-            location.href = location.origin + '/index.html';
+            location.href = '/index.html';
         }
     }
 }

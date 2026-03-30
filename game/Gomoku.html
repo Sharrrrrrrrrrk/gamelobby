@@ -111,7 +111,7 @@
             <button id="restartBtn" style="background: #34a853;">重新開局 (房主)</button>
             <button id="closeRoomBtn" style="background: #d93025;">關閉並解散房間</button>
         </div>
-        <button onclick="location.href=location.origin + '/index.html'" style="background: #666;">返回大廳</button>
+        <button onclick="location.href='/index.html'" style="background: #666;">返回大廳</button>
     </div>
 </div>
 
@@ -127,7 +127,7 @@
 
     roomRef.on('value', snap => {
         const data = snap.val();
-        if (!data) return location.href = location.origin + '/index.html';
+        if (!data) return location.href = '/index.html';
 
         const myColor = data.turnOrder.indexOf(user) === 0 ? 1 : 2; 
         const isMyTurn = (data.turnOrder[data.currentTurnIndex] === user);

@@ -76,7 +76,7 @@
             // 1. 監聽房間是否被刪除 (解散)
             if (!data) {
                 alert("房間已被房主關閉，即將返回大廳。");
-                location.href = location.origin + '/index.html';
+                location.href = '/index.html';
                 return;
             }
         
@@ -173,7 +173,7 @@
             if(confirm("確定要離開遊戲嗎？")) {
                 roomRef.once('value').then(snap => {
                     const data = snap.val();
-                    if (!data) return location.href = location.origin + '/index.html';
+                    if (!data) return location.href = '/index.html';
         
                     if (data.host === user) {
                         // 房主離開直接解散
