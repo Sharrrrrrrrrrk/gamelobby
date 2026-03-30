@@ -1,0 +1,299 @@
+
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>六角占地 - 單機練習模式</title>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script src="../firebase.js"></script>
+<style>
+    body { margin:0; background:#1a1a1a; color:white; font-family:'Segoe UI',sans-serif; display:flex; height:100vh; overflow: hidden; }
+    #sidebar { width:260px; background:#2d2d2d; padding:20px; display:flex; flex-direction:column; gap:15px; box-shadow:2px 0 15px rgba(0,0,0,0.5); z-index: 10; }
+    #main { flex:1; display:flex; justify-content:center; align-items:center; position:relative; background: radial-gradient(circle, #252525 0%, #1a1a1a 100%); }
+    canvas { max-width:95%; max-height:95%; border-radius:15px; cursor:pointer; }
+    
+    /* 介面美化 */
+    h3 { margin: 0; color: #00bcd4; font-size: 18px; }
+    .control-group { background: #3d3d3d; padding: 12px; border-radius: 10px; }
+    label { display: block; font-size: 13px; margin-bottom: 5px; color: #ccc; }
+    
+    button { padding:10px; cursor:pointer; background:#1a73e8; color:white; border:none; border-radius:8px; font-weight:bold; transition:0.2s; }
+    button:hover { background:#1557b0; transform:translateY(-2px); }
+    .secondary-btn { background: #555; margin-top: auto; } /* 回大廳按鈕 */
+    
+    .status { font-size:18px; margin:10px 0; min-height:60px; line-height: 1.5; }
+    .legend { font-size:12px; color:#aaa; line-height: 1.8; border-top: 1px solid #444; pt: 10px; }
+    .dot { height:10px; width:10px; border-radius:50%; display:inline-block; margin-right: 8px; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+    <h3>⬢ 六角占地 (練習)</h3>
+    <p id="welcomeMsg" style="font-size: 14px; color: #888;">載入中...</p>
+
+    <div class="control-group">
+        <label>棋盤半徑: <span id="sizeValue">3</span></label>
+        <input type="range" id="sizeRange" min="2" max="6" value="3" style="width:100%">
+    </div>
+
+    <div class="control-group">
+        <label>障礙物: <span id="obstacleValue">3</span></label>
+        <input type="range" id="obstacleRange" min="0" max="15" value="3" style="width:100%">
+    </div>
+
+    <button id="resetBtn">🔄 重置棋局</button>
+    <button id="undoBtn" style="background:#673ab7">⬅️ 悔棋</button>
+    <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+        <input type="checkbox" id="aiToggle" checked> AI 玩家 (紅)
+    </label>
+
+    <div id="status" class="status"></div>
+
+    <div class="legend">
+        <div><span class="dot" style="background: rgba(0, 255, 0, 0.5);"></span>複製 (距離 1)</div>
+        <div><span class="dot" style="background: rgba(255, 255, 0, 0.5);"></span>跳躍 (距離 2)</div>
+        <div><span class="dot" style="background: rgba(128,128,128,0.8);"></span>障礙物</div>
+    </div>
+
+    <button class="secondary-btn" onclick="goBack()">🏠 回到大廳</button>
+</div>
+
+<div id="main">
+    <canvas id="gameCanvas" width="800" height="800"></canvas>
+</div>
+
+<script>
+// --- 基礎參數與 URL 銜接 ---
+const params = new URLSearchParams(location.search);
+const rid = params.get('roomId'); // 取得房間 ID
+const username = params.get('username') || "玩家";
+const roomRef = rid ? db.ref(`rooms/${rid}`) : null;
+document.getElementById('welcomeMsg').innerText = `你好，${username}`;
+
+function goBack() {
+    if(confirm("確定要離開目前的棋局嗎？")) {
+        // 如果有 roomRef 且是房主才刪除，或是單機模式直接清理
+        if(roomRef) {
+            roomRef.remove().then(() => {
+                location.href = location.origin + '/index.html';
+            }).catch(() => {
+                location.href = location.origin + '/index.html';
+            });
+        } else {
+            location.href = location.origin + '/index.html';
+        }
+    }
+}
+// --- 以下為你原本優化後的遊戲邏輯 ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const statusDiv = document.getElementById('status');
+const sizeRange = document.getElementById('sizeRange');
+const sizeValue = document.getElementById('sizeValue');
+const obstacleRange = document.getElementById('obstacleRange');
+const obstacleValue = document.getElementById('obstacleValue');
+const resetBtn = document.getElementById('resetBtn');
+const aiToggle = document.getElementById('aiToggle');
+
+let grid = [], hexSize, selectedHex=null, hoveredHex=null, currentPlayer=1, gameActive=true, boardRadius=3, history=[];
+
+sizeRange.oninput = ()=>{ sizeValue.innerText = sizeRange.value; }
+obstacleRange.oninput = ()=>{ obstacleValue.innerText = obstacleRange.value; }
+
+function saveHistory(){
+    history.push({ grid:grid.map(h=>({...h})), currentPlayer });
+    if(history.length > 50) history.shift(); // 限制紀錄大小
+}
+
+function undoMove(){
+    if(history.length===0) return;
+    if(aiToggle.checked && history.length>=2){
+        history.pop();
+        const last = history.pop();
+        grid = last.grid.map(h=>({...h}));
+        currentPlayer = last.currentPlayer;
+    } else {
+        const last = history.pop();
+        grid = last.grid.map(h=>({...h}));
+        currentPlayer = last.currentPlayer;
+    }
+    updateStatus();
+}
+
+function setOwner(q,r,player){ const hex = grid.find(h=>h.q===q&&h.r===r); if(hex) hex.owner=player; }
+function getHexPos(q,r){ return { x: canvas.width/2 + hexSize*1.5*q, y: canvas.height/2 + hexSize*(Math.sqrt(3)/2*q + Math.sqrt(3)*r) }; }
+function getDistance(h1,h2){ return (Math.abs(h1.q-h2.q)+Math.abs(h1.q+h1.r-h2.q-h2.r)+Math.abs(h1.r-h2.r))/2; }
+function getNearestHex(mx,my){ let minDist=Infinity, nearest=null; grid.forEach(h=>{ let d=Math.hypot(h.x-mx,h.y-my); if(d<minDist){ minDist=d; nearest=h; } }); return minDist<hexSize*0.8 ? nearest : null; }
+
+function generateObstacles(count){
+    let emptyHexes = grid.filter(h => h.type === 'normal' && h.owner === 0);
+    for(let i=0;i<count;i++){
+        if(emptyHexes.length===0) break;
+        const idx=Math.floor(Math.random()*emptyHexes.length);
+        emptyHexes[idx].type='obstacle';
+        emptyHexes.splice(idx,1);
+    }
+}
+
+function initGame(){
+    boardRadius = parseInt(sizeRange.value);
+    grid=[]; gameActive=true; currentPlayer=1; selectedHex=null; hoveredHex=null; history=[];
+    const padding=80;
+    hexSize = Math.min((canvas.width-padding)/(3*boardRadius+1), (canvas.height-padding)/(Math.sqrt(3)*(2*boardRadius+1)));
+
+    for(let q=-boardRadius;q<=boardRadius;q++){
+        for(let r=Math.max(-boardRadius,-q-boardRadius); r<=Math.min(boardRadius,-q+boardRadius); r++){
+            const pos=getHexPos(q,r);
+            grid.push({ q,r,x:pos.x,y:pos.y, owner:0, scale:1, ripple:0, type:'normal' });
+        }
+    }
+    
+    // 初始化四角棋子
+    setOwner(0,-boardRadius,1);
+    setOwner(0,boardRadius,2);
+    setOwner(boardRadius,-boardRadius,2);
+    setOwner(-boardRadius,boardRadius,1);
+
+    generateObstacles(parseInt(obstacleRange.value));
+    updateStatus();
+}
+
+function updateStatus(){
+    const blue = grid.filter(h=>h.owner===1).length;
+    const red = grid.filter(h=>h.owner===2).length;
+    const turnColor = currentPlayer===1?"#00e5ff":"#ff5252";
+    canvas.style.boxShadow = currentPlayer===1?"0 0 30px rgba(0,229,255,0.3)":"0 0 30px rgba(255,82,82,0.3)";
+    statusDiv.innerHTML=`
+        <span style="color:#00e5ff">藍: ${blue}</span> | <span style="color:#ff5252">紅: ${red}</span><br>
+        <small>當前輪到: <b style="color:${turnColor}">${currentPlayer===1?'藍色(你)':'紅色'}</b></small>`;
+}
+
+function checkGameOver(){
+    const blue=grid.filter(h=>h.owner===1).length;
+    const red=grid.filter(h=>h.owner===2).length;
+    
+    const hasMove = (p) => grid.some(start=>start.owner===p && grid.some(end=>end.owner===0 && end.type==='normal' && getDistance(start,end)<=2));
+
+    if(blue === 0 || red === 0 || (!hasMove(1) && !hasMove(2))){
+        gameActive = false;
+        let winnerMsg = blue > red ? "藍色勝利！" : red > blue ? "紅色勝利！" : "平手！";
+        statusDiv.innerHTML = `<b style="font-size:22px; color:#ffca28">${winnerMsg}</b><br><button onclick="initGame()">重新開始</button>`;
+        return true;
+    }
+
+    if(!hasMove(currentPlayer)){
+        currentPlayer = currentPlayer===1?2:1;
+        updateStatus();
+    }
+    return false;
+}
+
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    grid.forEach(h=>{
+        h.scale += (1-h.scale)*0.15;
+        if(h.ripple>0) h.ripple*=0.92;
+        
+        let fill="#333";
+        if(h.type==='obstacle') fill="#555";
+        else if(h.owner===1) fill="#00e5ff";
+        else if(h.owner===2) fill="#ff5252";
+
+        if(selectedHex && h.owner===0 && h.type==='normal'){
+            const d=getDistance(selectedHex,h);
+            if(d===1) fill="rgba(0,255,0,0.2)";
+            else if(d===2) fill="rgba(255,255,0,0.2)";
+        }
+
+        ctx.beginPath();
+        for(let i=0;i<6;i++){
+            const angle=Math.PI/3*i;
+            ctx.lineTo(h.x + hexSize*0.9*h.scale*Math.cos(angle), h.y + hexSize*0.9*h.scale*Math.sin(angle));
+        }
+        ctx.closePath();
+        ctx.fillStyle=fill; ctx.fill();
+        ctx.strokeStyle="#444"; ctx.stroke();
+
+        if(h.ripple>0.05){
+            ctx.beginPath(); ctx.arc(h.x,h.y,hexSize*h.ripple*1.5,0,Math.PI*2);
+            ctx.strokeStyle=`rgba(255,255,255,${h.ripple})`; ctx.stroke();
+        }
+
+        if(h===hoveredHex){ ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.stroke(); ctx.lineWidth=1; }
+        if(h===selectedHex){ ctx.strokeStyle="yellow"; ctx.lineWidth=3; ctx.stroke(); ctx.lineWidth=1; }
+    });
+    requestAnimationFrame(draw);
+}
+
+function move(from,to){
+    saveHistory();
+    const d=getDistance(from,to);
+    if(d===2) from.owner=0;
+    to.owner=currentPlayer;
+    to.scale=0.5;
+    
+    grid.forEach(h=>{ 
+        if(getDistance(to,h)===1 && h.owner!==0 && h.owner!==currentPlayer){ 
+            h.owner=currentPlayer; h.ripple=1; h.scale=0.8;
+        } 
+    });
+    
+    selectedHex=null;
+    if(!checkGameOver()){
+        currentPlayer = currentPlayer===1?2:1;
+        updateStatus();
+        if(aiToggle.checked && currentPlayer===2){ setTimeout(aiMove, 400); }
+    }
+}
+
+canvas.addEventListener('mousemove', e=>{
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left)*(canvas.width/rect.width);
+    const my = (e.clientY - rect.top)*(canvas.height/rect.height);
+    hoveredHex = getNearestHex(mx,my);
+});
+
+canvas.addEventListener('click', e=>{
+    if(!gameActive) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left)*(canvas.width/rect.width);
+    const my = (e.clientY - rect.top)*(canvas.height/rect.height);
+    const clickedHex = getNearestHex(mx,my);
+    if(!clickedHex) return;
+
+    if(clickedHex.owner===currentPlayer){
+        selectedHex = (selectedHex===clickedHex?null:clickedHex);
+    } else if(selectedHex && clickedHex.owner===0 && clickedHex.type==='normal'){
+        if(getDistance(selectedHex,clickedHex)<=2) move(selectedHex,clickedHex);
+    }
+});
+
+function aiMove(){
+    let moves=[];
+    grid.forEach(a=>{
+        if(a.owner!==2) return;
+        grid.forEach(b=>{
+            if(b.owner===0 && b.type==='normal' && getDistance(a,b)<=2){
+                let score=0;
+                grid.forEach(n=>{ if(getDistance(b,n)===1 && n.owner===1) score++; });
+                if(getDistance(a,b)===1) score += 0.5; // 複製優於跳躍
+                moves.push({a,b,score});
+            }
+        });
+    });
+    if(moves.length===0) { checkGameOver(); return; }
+    moves.sort((x,y)=>y.score-x.score);
+    move(moves[0].a, moves[0].b);
+}
+
+document.getElementById('undoBtn').onclick = ()=>undoMove();
+resetBtn.onclick = ()=>initGame();
+
+initGame();
+draw();
+</script>
+</body>
+</html>

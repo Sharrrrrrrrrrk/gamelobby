@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四子棋連線對戰</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="../firebase.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; padding: 15px; margin: 0; }
+        .game-card { background: #2d2d2d; border-radius: 15px; padding: 15px; width: 100%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        
+        /* 四子棋棋盤：7欄 x 6列 */
+        #board-wrapper {
+            background: #2563eb; /* 經典藍色棋盤 */
+            padding: 10px;
+            border-radius: 10px;
+            border: 4px solid #1e40af;
+            display: inline-block;
+            margin: 20px auto;
+            position: relative;
+        }
+
+        #board { 
+            display: grid; 
+            grid-template-columns: repeat(7, 1fr); /* 7 欄 */
+            grid-gap: 8px; 
+        }
+
+        .cell { 
+            width: 50px;
+            height: 50px;
+            background: #1a1a1a; /* 棋盤孔洞色 */
+            border-radius: 50%;
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            cursor: pointer;
+            box-shadow: inset 2px 2px 5px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        /* 棋子掉落動畫 */
+        .piece { 
+            width: 90%; 
+            height: 90%; 
+            border-radius: 50%; 
+            z-index: 2;
+            animation: fall 0.4s cubic-bezier(0.45, 0.05, 0.55, 0.95);
+        }
+        .piece.player1 { background: #ef4444; box-shadow: 0 4px #b91c1c; } /* 紅子 */
+        .piece.player2 { background: #facc15; box-shadow: 0 4px #ca8a04; } /* 黃子 */
+
+        @keyframes fall {
+            0% { transform: translateY(-300px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+
+        /* 最後落子標記 */
+        .last-move-marker {
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            z-index: 3;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .turn-indicator { text-align: center; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-weight: bold; background: #3d3d3d; }
+        .active-turn { background: #4285f4; box-shadow: 0 0 15px rgba(66, 133, 244, 0.5); }
+        
+        #endGameMenu { background: rgba(0, 0, 0, 0.9); border: 2px solid #555; border-radius: 12px; padding: 20px; text-align: center; margin-top: 20px; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; color: white; cursor: pointer; margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="game-card">
+    <div id="turnBox" class="turn-indicator">載入中...</div>
+    
+    <div style="text-align: center;">
+        <div id="board-wrapper">
+            <div id="board"></div>
+        </div>
+    </div>
+
+    <div id="endGameMenu" style="display:none;">
+        <h3 style="color: #ffca28; margin-top: 0;">遊戲結束</h3>
+        <div id="winnerMsg" style="font-size: 20px; margin-bottom: 15px;"></div>
+        <div id="hostEndControls" style="display:none;">
+            <button id="restartBtn" style="background: #34a853;">重新開局</button>
+            <button id="closeRoomBtn" style="background: #d93025;">關閉房間</button>
+        </div>
+        <button onclick="location.href=location.origin + '/index.html'" style="background: #666;">返回大廳</button>
+    </div>
+</div>
+
+<script>
+    const params = new URLSearchParams(location.search);
+    const rid = params.get('roomId'), user = params.get('username');
+    const roomRef = db.ref(`rooms/${rid}`);
+
+    const COLS = 7;
+    const ROWS = 6;
+    const initBoard = Array(COLS * ROWS).fill(0);
+
+    roomRef.on('value', snap => {
+        const data = snap.val();
+        if (!data) return location.href = location.origin + '/index.html';
+
+        const myColor = data.turnOrder.indexOf(user) === 0 ? 1 : 2; 
+        const isMyTurn = (data.turnOrder[data.currentTurnIndex] === user);
+        
+        const tBox = document.getElementById('turnBox');
+        tBox.innerText = isMyTurn ? `⭐ 輪到你落子 (${myColor===1?'紅子':'黃子'})` : `等待對手落子...`;
+        tBox.className = isMyTurn ? "turn-indicator active-turn" : "turn-indicator";
+
+        renderBoard(data.board || initBoard, isMyTurn, myColor, data.lastMove);
+
+        if (data.status === 'finished') {
+            document.getElementById('endGameMenu').style.display = 'block';
+            document.getElementById('winnerMsg').innerText = data.winner;
+            if (data.host === user) document.getElementById('hostEndControls').style.display = 'block';
+        } else {
+            document.getElementById('endGameMenu').style.display = 'none';
+        }
+    });
+
+    // 宣告一個全域變數來記錄上一次的棋盤狀態
+    let previousBoard = Array(COLS * ROWS).fill(0);
+
+    function renderBoard(boardData, isMyTurn, myColor, lastMove) {
+        const boardEl = document.getElementById('board');
+        
+        // 如果是第一次執行（棋盤內沒東西），先建立格子
+        if (boardEl.children.length === 0) {
+            boardData.forEach((_, i) => {
+                const div = document.createElement('div');
+                div.className = 'cell';
+                div.id = `cell-${i}`;
+                boardEl.appendChild(div);
+            });
+        }
+
+        boardData.forEach((cell, i) => {
+            const cellDiv = document.getElementById(`cell-${i}`);
+            
+            // 1. 處理點擊邏輯 (每次都要更新，因為 isMyTurn 可能會變)
+            cellDiv.onclick = isMyTurn ? () => handleMove(i % COLS, myColor, boardData) : null;
+
+            // 2. 只有當資料變動時才更新棋子
+            if (cell !== previousBoard[i]) {
+                cellDiv.innerHTML = ''; // 清除舊東西（例如提示點）
+                if (cell !== 0) {
+                    const p = document.createElement('div');
+                    // 重點：如果這一顆是最後下的那子，就加上 animation，否則不加
+                    const isNewest = (i === lastMove);
+                    p.className = `piece ${cell === 1 ? 'player1' : 'player2'}`;
+                    
+                    // 如果不是最新落下的子，就取消動畫
+                    if (!isNewest) {
+                        p.style.animation = 'none';
+                    }
+                    
+                    cellDiv.appendChild(p);
+                }
+            }
+
+            // 3. 更新最後落子標記 (紅點或白點標記)
+            // 先移除舊標記
+            const oldMarker = cellDiv.querySelector('.last-move-marker');
+            if (oldMarker) oldMarker.remove();
+            
+            // 如果是最後一手，加上標記
+            if (cell !== 0 && i === lastMove) {
+                const marker = document.createElement('div');
+                marker.className = 'last-move-marker';
+                cellDiv.appendChild(marker);
+            }
+        });
+
+        // 儲存本次狀態，供下次比對
+        previousBoard = [...boardData];
+    }
+
+    function handleMove(col, color, board) {
+        // 1. 尋找該欄最底部的空位 (從最後一列往上找)
+        let targetIdx = -1;
+        for (let r = ROWS - 1; r >= 0; r--) {
+            let idx = r * COLS + col;
+            if (board[idx] === 0) {
+                targetIdx = idx;
+                break;
+            }
+        }
+
+        if (targetIdx === -1) return; // 該欄已滿
+
+        let newBoard = [...board];
+        newBoard[targetIdx] = color;
+
+        if (checkWin(targetIdx, color, newBoard)) {
+            const msg = `🏆 ${color === 1 ? '紅色' : '黃色'} 四連線勝利！`;
+            roomRef.update({ board: newBoard, status: 'finished', winner: msg, lastMove: targetIdx });
+        } else {
+            roomRef.once('value').then(snap => {
+                const d = snap.val();
+                roomRef.update({
+                    board: newBoard,
+                    currentTurnIndex: (d.currentTurnIndex + 1) % 2,
+                    lastMove: targetIdx
+                });
+            });
+        }
+    }
+
+    function checkWin(idx, color, board) {
+        const r = Math.floor(idx / COLS), c = idx % COLS;
+        const directions = [[1,0], [0,1], [1,1], [1,-1]]; // 垂直, 水平, 斜線
+        for (let [dr, dc] of directions) {
+            let count = 1;
+            count += countLine(r, c, dr, dc, color, board);
+            count += countLine(r, c, -dr, -dc, color, board);
+            if (count >= 4) return true;
+        }
+        return false;
+    }
+
+    function countLine(r, c, dr, dc, color, board) {
+        let n = 0, nr = r + dr, nc = c + dc;
+        while (nr >= 0 && nr < ROWS && nc >= 0 && nc < COLS && board[nr * COLS + nc] === color) {
+            n++; nr += dr; nc += dc;
+        }
+        return n;
+    }
+
+    document.getElementById('restartBtn').onclick = () => {
+        previousBoard = Array(COLS * ROWS).fill(0); // 重置比對變數
+        roomRef.update({ status: 'playing', board: initBoard, currentTurnIndex: 0, winner: null, lastMove: null });
+    };
+
+    document.getElementById('closeRoomBtn').onclick = () => {
+        if(confirm("確定解散？")) roomRef.remove();
+    };
+</script>
+</body>
+</html>

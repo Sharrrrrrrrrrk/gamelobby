@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>遊戲大廳 - 登入</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="firebase.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; justify-content: center; padding: 20px; }
+        .container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
+        h2 { color: #1a73e8; text-align: center; margin-bottom: 30px; }
+        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; margin-top: 10px; }
+        .primary-btn { background: #1a73e8; color: white; }
+        .primary-btn:hover { background: #1557b0; }
+        .room-card { background: #fff; border: 1px solid #eee; padding: 15px; border-radius: 10px; margin-top: 15px; display: flex; justify-content: space-between; align-items: center; transition: transform 0.2s; }
+        .room-card:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .room-info { font-size: 14px; }
+        .join-btn { width: auto; padding: 8px 15px; background: #34a853; color: white; margin-top: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>遊戲大廳</h2>
+        <input id="name" placeholder="輸入你的暱稱">
+        
+        <div style="margin-top: 20px;">
+            <label>建立新房間</label>
+            <select id="gameType">
+                <option value="1a2b">1A2B 猜數字</option>
+                <option value="Hextakeover">六角占地</option>
+                <option value="Othello">黑白棋</option>
+                <option value="ConnectFour">四子棋</option>
+                <option value="Gomoku">五子棋</option>
+            </select>
+            <button id="createRoomBtn" class="primary-btn">建立房間</button>
+        </div>
+
+        <div style="margin-top: 30px;">
+            <label>開放中的房間</label>
+            <div id="roomList">正在載入房間列表...</div>
+        </div>
+    </div>
+
+    <script>
+        const usernameInput = document.getElementById('name');
+        const roomListUI = document.getElementById('roomList');
+
+        // 監聽房間列表
+        db.ref('rooms').on('value', snap => {
+            const rooms = snap.val();
+            roomListUI.innerHTML = '';
+            if(!rooms) { roomListUI.innerHTML = '<p style="color:#999; text-align:center;">目前沒有房間</p>'; return; }
+        
+            Object.keys(rooms).forEach(id => {
+                const r = rooms[id];
+                const currentCount = r.turnOrder ? r.turnOrder.length : 0;
+                const maxP = r.maxPlayers || 5;
+        
+                // 條件一：人數已滿 -> 完全不顯示
+                if (currentCount >= maxP) return;
+        
+                // 條件二：人數未滿 -> 顯示出來，但區分「等待中」與「遊戲中」
+                const div = document.createElement('div');
+                div.className = 'room-card';
+                
+                let statusTag = '';
+                let btnHtml = '';
+        
+                if (r.status === 'waiting') {
+                    statusTag = `<span style="color: #34a853;">● 等待中</span>`;
+                    btnHtml = `<button class="join-btn" onclick="quickJoin('${id}')">加入</button>`;
+                } else {
+                    statusTag = `<span style="color: #ea4335;">● 遊戲進行中</span>`;
+                    // 遊戲中通常不允許中途加入，所以按鈕改為灰色或隱藏，但目前還是可以中途加入
+                    //btnHtml = `<button class="join-btn" style="background:#999; cursor:not-allowed;" disabled>不可加入</button>`;
+                    btnHtml = `<button class="join-btn" onclick="quickJoin('${id}')">加入</button>`;
+                }
+        
+                div.innerHTML = `
+                    <div class="room-info">
+                        <strong>[${r.gameType.toUpperCase()}] ${id}</strong> ${statusTag}<br>
+                        <small>${r.host} 的房間 | 人數: ${currentCount}/${maxP}</small>
+                    </div>
+                    ${btnHtml}
+                `;
+                roomListUI.appendChild(div);
+            });
+        });
+
+        document.getElementById('createRoomBtn').onclick = () => {
+            const name = usernameInput.value.trim();
+            const gType = document.getElementById('gameType').value;
+            if(!name) return alert('請先輸入暱稱');
+            
+            // 設定人數上限
+            let maxP = 5; 
+            switch(gType) {
+                case 'Hextakeover': maxP = 1; break;
+                case '1a2b': maxP = 5; break;
+                case 'Othello': maxP = 2; break;
+                case 'ConnectFour': maxP = 2; break;
+                case 'Gomoku': maxP = 2; break;
+            }
+        
+            const rid = Math.random().toString(36).substring(2,8).toUpperCase();
+            
+            db.ref(`rooms/${rid}`).set({
+                host: name,
+                gameType: gType,
+                maxPlayers: maxP, // 重要：寫入上限
+                status: 'waiting',
+                players: { [name]: { joined: true } },
+                turnOrder: [name],
+                currentTurnIndex: 0
+            }).then(() => {
+                if (gType === 'Hextakeover') {
+                    // 單人遊戲直接自動啟動，跳過 lobby
+                    db.ref(`rooms/${rid}`).update({ status: 'playing' }).then(() => {
+                        location.href = `hextakeover.html?roomId=${rid}&username=${encodeURIComponent(name)}`;
+                    });
+                } else {
+                    location.href = `lobby.html?roomId=${rid}&username=${encodeURIComponent(name)}`;
+                }
+            });
+        };
+
+        window.quickJoin = (rid) => {
+            const name = usernameInput.value.trim();
+            if(!name) return alert('請先輸入暱稱');
+        
+            db.ref(`rooms/${rid}`).once('value').then(s => {
+                const data = s.val();
+                const currentOrder = data.turnOrder || [];
+                const maxP = data.maxPlayers || 5;
+        
+                if(currentOrder.length >= maxP) {
+                    alert('房間已滿！');
+                    return;
+                }
+        
+                if(!currentOrder.includes(name)) currentOrder.push(name);
+                
+                db.ref(`rooms/${rid}`).update({ 
+                    [`players/${name}`]: { joined: true }, 
+                    turnOrder: currentOrder 
+                }).then(() => location.href = `lobby.html?roomId=${rid}&username=${encodeURIComponent(name)}`);
+            });
+        };
+    </script>
+</body>
+</html>
