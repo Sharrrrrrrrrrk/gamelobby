@@ -177,7 +177,7 @@
         
                     if (data.host === user) {
                         // 房主離開直接解散
-                        roomRef.remove().then(() => location.href = 'index.html');
+                        roomRef.remove().then(() => location.href = '/index.html');
                     } else {
                         // 一般玩家離開，移除名單
                         const newOrder = data.turnOrder.filter(p => p !== user);
@@ -186,7 +186,7 @@
                             turnOrder: newOrder,
                             // 若剛好輪到此人離開，重設回合指針
                             currentTurnIndex: 0 
-                        }).then(() => location.href = 'index.html');
+                        }).then(() => location.href = '/index.html');
                     }
                 });
             }
