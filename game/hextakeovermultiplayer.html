@@ -19,27 +19,12 @@
         flex-direction:column; 
         gap:15px; 
         box-shadow:2px 0 15px rgba(0,0,0,0.5); 
-        z-index: 20; 
-        transition: transform 0.3s ease;
-        /* 新增以下屬性 */
-        box-sizing: border-box; 
-    }
-    /* 讓中間的內容區塊自動填滿，把按鈕擠下去 */
-    .legend {
-        margin-top: auto; /* 將圖例與按鈕推向底部 */
-        padding-bottom: 10px;
+        z-index: 100; /* 提高層級 */
+        transition: transform 0.3s ease; 
+        box-sizing: border-box;
+        position: relative;
     }
 
-    @media (max-width: 768px) {
-        #sidebar { 
-            position: fixed; 
-            left: 0; 
-            top: 0; 
-            height: 100%; /* 使用 100% 替代 100vh 在行動端更穩定 */
-            padding-bottom: 40px; /* 增加底部留白，防止被手機系統條遮擋 */
-        }
-    }
-        
     #main { flex:1; display:flex; justify-content:center; align-items:center; position:relative; background: radial-gradient(circle, #252525 0%, #1a1a1a 100%); touch-action: none; overflow: hidden; }
     canvas { max-width:95%; max-height:95%; border-radius:15px; cursor:pointer; }
     
@@ -47,7 +32,7 @@
     .control-group { background: #3d3d3d; padding: 12px; border-radius: 10px; }
     label { display: block; font-size: 13px; margin-bottom: 5px; color: #ccc; }
     
-    button { padding:10px; cursor:pointer; background:#1a73e8; color:white; border:none; border-radius:8px; font-weight:bold; transition:0.2s; }
+    button { padding:10px; cursor:pointer; background:#1a73e8; color:white; border:none; border-radius:8px; font-weight:bold; transition:0.2s; flex-shrink: 0; }
     button:hover { background:#1557b0; transform:translateY(-2px); }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     
@@ -57,18 +42,37 @@
     #endGameMenu { 
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
         background: rgba(0, 0, 0, 0.95); border: 2px solid #555; border-radius: 12px; 
-        padding: 30px; text-align: center; z-index: 100; min-width: 250px;
+        padding: 30px; text-align: center; z-index: 150; min-width: 250px;
         box-shadow: 0 0 30px rgba(0,0,0,0.8);
     }
     
-    .secondary-btn { background: #555; margin-top: auto; }
+    .secondary-btn { background: #555; margin-top: 5px; }
 
-    /* 手機版收縮機制 */
+    /* 圖例自動推到底部 */
+    .legend { 
+        font-size:12px; color:#aaa; line-height: 1.8; 
+        border-top: 1px solid #444; padding-top: 10px; 
+        margin-top: auto; 
+    }
+    .dot { height:10px; width:10px; border-radius:50%; display:inline-block; margin-right: 8px; }
+
+    /* 修正後的切換按鈕樣式 */
     .toggle-btn {
-        position: absolute; right: -50px; top: 10px;
-        width: 40px; height: 40px; display: none;
-        background: #2d2d2d; color: white; border: none;
-        border-radius: 0 8px 8px 0; cursor: pointer; font-size: 20px;
+        position: absolute; 
+        right: -45px; /* 關鍵：讓按鈕探頭 */
+        top: 20px;
+        width: 45px; 
+        height: 40px; 
+        display: none;
+        background: #2d2d2d; 
+        color: #00bcd4; 
+        border: 1px solid #444;
+        border-left: none;
+        border-radius: 0 8px 8px 0; 
+        cursor: pointer; 
+        font-size: 20px;
+        z-index: 101;
+        box-shadow: 3px 0 10px rgba(0,0,0,0.3);
     }
 
     #overlay {
@@ -77,7 +81,12 @@
     }
 
     @media (max-width: 768px) {
-        #sidebar { position: fixed; left: 0; top: 0; height: 100vh; transform: translateX(-100%); }
+        #sidebar { 
+            position: fixed; left: 0; top: 0; 
+            height: 100%; transform: translateX(-100%); 
+            overflow: visible; /* 允許按鈕溢出顯示 */
+            padding-bottom: env(safe-area-inset-bottom, 20px);
+        }
         #sidebar.active { transform: translateX(0); }
         .toggle-btn { display: block; }
         #sidebar.active + #main #overlay { display: block; }
@@ -103,30 +112,32 @@
 
     <div id="status" class="status">等待玩家...</div>
 
+    <div class="legend">
+        <div><span class="dot" style="background: rgba(0, 255, 0, 0.5);"></span>複製 (距離 1)</div>
+        <div><span class="dot" style="background: rgba(255, 255, 0, 0.5);"></span>跳躍 (距離 2)</div>
+        <div><span class="dot" style="background: rgba(128,128,128,0.8);"></span>障礙物</div>
+    </div>
+
+    <button class="secondary-btn" onclick="goBack()" style="width: 100%;">🏠 回到大廳</button>
+</div>
+
+<div id="main">
+    <div id="overlay" onclick="toggleSidebar()"></div>
+    
     <div id="endGameMenu" style="display:none;">
         <h3 style="color: #ffca28; font-size: 24px;">遊戲結束！</h3>
         <div id="winnerDisplay" style="margin: 15px 0; font-size: 18px;"></div>
         <div id="hostEndControls" style="display:none;">
             <button id="rematchBtn" style="background: #34a853; width: 100%; margin-bottom: 10px;">再戰一場</button>
         </div>
-        <button onclick="leaveRoom()" style="background: #666; width: 100%;">回大廳</button>
+        <button onclick="goBack()" style="background: #666; width: 100%;">回大廳</button>
     </div>
 
-    <div class="legend" style="font-size:12px; color:#aaa; line-height: 1.8; border-top: 1px solid #444; padding-top: 10px;">
-        <div><span style="height:10px; width:10px; border-radius:50%; display:inline-block; margin-right: 8px; background: rgba(0, 255, 0, 0.5);"></span>複製 (1)</div>
-        <div><span style="height:10px; width:10px; border-radius:50%; display:inline-block; margin-right: 8px; background: rgba(255, 255, 0, 0.5);"></span>跳躍 (2)</div>
-    </div>
-
-    <button class="secondary-btn" onclick="goBack()" style="width: 100%; margin-top: 10px;">🏠 回到大廳</button>
-</div>
-
-<div id="main">
-    <div id="overlay" onclick="toggleSidebar()"></div>
     <canvas id="gameCanvas" width="800" height="800"></canvas>
 </div>
 
 <script>
-// --- 基礎參數 ---
+// --- 原有連線邏輯保持不變 ---
 const params = new URLSearchParams(location.search);
 const rid = params.get('roomId'), username = params.get('username') || "玩家";
 const roomRef = db.ref(`rooms/${rid}`);
@@ -139,7 +150,27 @@ const toggleBtn = document.getElementById('toggleBtn');
 let grid = [], hexSize, selectedHex=null, hoveredHex=null;
 let myColor = 0, currentData = null;
 
-// --- Firebase 核心監聽 ---
+// --- UI 切換邏輯 ---
+function toggleSidebar() {
+    sidebar.classList.toggle('active');
+    toggleBtn.innerText = sidebar.classList.contains('active') ? '✕' : '☰';
+}
+
+function autoCloseSidebar() {
+    if (window.innerWidth <= 768) {
+        sidebar.classList.remove('active');
+        toggleBtn.innerText = '☰';
+    }
+}
+
+// 修正點擊事件
+toggleBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleSidebar();
+};
+
+// --- Firebase 監聽 ---
 roomRef.on('value', snap => {
     const data = snap.val();
     if (!data) { 
@@ -150,6 +181,7 @@ roomRef.on('value', snap => {
     
     currentData = data;
     grid = data.board || [];
+    
     myColor = data.turnOrder.indexOf(username) === 0 ? 1 : 2;
     const isMe = data.turnOrder[data.currentTurnIndex] === username;
 
@@ -162,7 +194,7 @@ roomRef.on('value', snap => {
 
     if (data.status === 'finished') {
         document.getElementById('endGameMenu').style.display = 'block';
-        document.getElementById('winnerDisplay').innerText = `🏆 ${data.winner}`;
+        document.getElementById('winnerDisplay').innerHTML = `<b style="color:#ffca28">${data.winner}</b>`;
     } else {
         document.getElementById('endGameMenu').style.display = 'none';
         updateStatusDisplay(data, isMe);
@@ -176,16 +208,163 @@ roomRef.on('value', snap => {
 function updateStatusDisplay(data, isMe) {
     const blue = grid.filter(h=>h.owner===1).length;
     const red = grid.filter(h=>h.owner===2).length;
-    const turnColor = data.currentTurnIndex === 0 ? "#00e5ff" : "#ff5252";
+    const turnOrderColor = data.currentTurnIndex === 0 ? "#00e5ff" : "#ff5252";
+    
     document.getElementById('status').innerHTML = `
         <span style="color:#00e5ff">藍: ${blue}</span> | <span style="color:#ff5252">紅: ${red}</span><br>
-        <small>${isMe ? '⭐ 輪到你了' : '⌛ 等待對方...'}</small>
+        <small style="color:${turnOrderColor}">${isMe ? '⭐ 輪到你了' : '⌛ 等待對方...'}</small>
     `;
+    canvas.style.boxShadow = turnOrderColor + "33 0px 0px 30px";
 }
 
-// --- 退出與解散 ---
-function leaveRoom() {
-    if(confirm("確定離開？")) {
+function initGameData() {
+    const radius = parseInt(document.getElementById('sizeRange').value);
+    const obsCount = parseInt(document.getElementById('obstacleRange').value);
+    let newGrid = [];
+    
+    for(let q=-radius; q<=radius; q++){
+        for(let r=Math.max(-radius,-q-radius); r<=Math.min(radius,-q+radius); r++){
+            newGrid.push({ q, r, owner: 0, type: 'normal', scale: 1 });
+        }
+    }
+    
+    const set = (q,r,o) => { const h = newGrid.find(x=>x.q===q && x.r===r); if(h) h.owner=o; };
+    set(0,-radius,1); set(-radius,radius,1);
+    set(0,radius,2); set(radius,-radius,2);
+    
+    let emptyOnes = newGrid.filter(h => h.owner === 0);
+    for(let i=0; i<obsCount && emptyOnes.length>0; i++){
+        const idx = Math.floor(Math.random()*emptyOnes.length);
+        emptyOnes[idx].type = 'obstacle';
+        emptyOnes.splice(idx,1);
+    }
+    
+    roomRef.update({ board: newGrid, currentTurnIndex: 0, status: 'playing', winner: null });
+}
+
+function movePiece(from, to) {
+    const newGrid = JSON.parse(JSON.stringify(grid));
+    const d = getDistance(from, to);
+    const target = newGrid.find(h => h.q === to.q && h.r === to.r);
+    
+    if(d === 2) {
+        const source = newGrid.find(h => h.q === from.q && h.r === from.r);
+        source.owner = 0;
+    }
+    
+    target.owner = myColor;
+    target.scale = 0.5;
+
+    newGrid.forEach(h => {
+        if(getDistance(target, h) === 1 && h.owner !== 0 && h.owner !== myColor) {
+            h.owner = myColor;
+            h.scale = 0.8;
+        }
+    });
+
+    selectedHex = null;
+    autoCloseSidebar();
+    checkTurnEnd(newGrid);
+}
+
+function checkTurnEnd(newGrid) {
+    const blueCount = newGrid.filter(h => h.owner === 1).length;
+    const redCount = newGrid.filter(h => h.owner === 2).length;
+    
+    const hasMoves = (player) => newGrid.some(start => 
+        start.owner === player && newGrid.some(end => 
+            end.owner === 0 && end.type === 'normal' && getDistance(start, end) <= 2
+        )
+    );
+
+    let nextIdx = (currentData.currentTurnIndex + 1) % 2;
+    let nextPlayerMoves = hasMoves(nextIdx === 0 ? 1 : 2);
+
+    if (blueCount === 0 || redCount === 0 || (!hasMoves(1) && !hasMoves(2))) {
+        let winnerText = blueCount > redCount ? "藍方勝利！" : (redCount > blueCount ? "紅方勝利！" : "雙方平手！");
+        roomRef.update({ board: newGrid, status: 'finished', winner: winnerText });
+    } else if (!nextPlayerMoves) {
+        roomRef.update({ board: newGrid, currentTurnIndex: currentData.currentTurnIndex });
+    } else {
+        roomRef.update({ board: newGrid, currentTurnIndex: nextIdx });
+    }
+}
+
+function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if (!grid.length) { requestAnimationFrame(draw); return; }
+    
+    const radius = Math.max(...grid.map(h=>Math.abs(h.q)));
+    hexSize = Math.min(canvas.width*0.9/(radius*3+1.5), canvas.height*0.9/((radius*2+1)*Math.sqrt(3)));
+    
+    grid.forEach(h => {
+        const p = getHexPos(h.q, h.r, hexSize);
+        const px = canvas.width/2 + p.x, py = canvas.height/2 + p.y;
+        
+        h.scale = h.scale || 1;
+        h.scale += (1 - h.scale) * 0.12;
+
+        ctx.beginPath();
+        for(let i=0;i<6;i++) ctx.lineTo(px + hexSize*0.9*h.scale*Math.cos(Math.PI/3*i), py + hexSize*0.9*h.scale*Math.sin(Math.PI/3*i));
+        ctx.closePath();
+        
+        let fill = '#333';
+        if(h.type==='obstacle') fill = '#555';
+        else if(h.owner===1) fill = '#00e5ff';
+        else if(h.owner===2) fill = '#ff5252';
+        
+        if(selectedHex && h.owner === 0 && h.type === 'normal'){
+            const d = getDistance(selectedHex, h);
+            if(d === 1) fill = "rgba(0, 255, 0, 0.25)";
+            else if(d === 2) fill = "rgba(255, 255, 0, 0.25)";
+        }
+
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.strokeStyle = (hoveredHex === h) ? '#fff' : '#444';
+        ctx.lineWidth = (hoveredHex === h) ? 2 : 1;
+        ctx.stroke();
+
+        if(selectedHex === h) { ctx.strokeStyle = 'yellow'; ctx.lineWidth = 3; ctx.stroke(); }
+    });
+    requestAnimationFrame(draw);
+}
+
+canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    hoveredHex = null;
+    grid.forEach(h => {
+        const p = getHexPos(h.q, h.r, hexSize);
+        if(Math.hypot(canvas.width/2 + p.x - mx, canvas.height/2 + p.y - my) < hexSize * 0.8) hoveredHex = h;
+    });
+});
+
+canvas.addEventListener('click', e => {
+    if(!currentData || currentData.status !== 'playing') return;
+    if(currentData.turnOrder[currentData.currentTurnIndex] !== username) return;
+    if(sidebar.classList.contains('active')) return;
+    if(!hoveredHex) return;
+
+    if(hoveredHex.owner === myColor) {
+        selectedHex = (selectedHex === hoveredHex) ? null : hoveredHex;
+    } else if(selectedHex && hoveredHex.owner === 0 && hoveredHex.type === 'normal') {
+        const d = getDistance(selectedHex, hoveredHex);
+        if(d <= 2) movePiece(selectedHex, hoveredHex);
+    }
+});
+
+function getHexPos(q, r, size) {
+    return { x: size * 1.5 * q, y: size * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r) };
+}
+
+function getDistance(h1, h2) {
+    return (Math.abs(h1.q - h2.q) + Math.abs(h1.q + h1.r - h2.q - h2.r) + Math.abs(h1.r - h2.r)) / 2;
+}
+
+function goBack() {
+    if(confirm("確定離開房間？")) {
         roomRef.once('value').then(snap => {
             const data = snap.val();
             if (!data) return location.href = '/index.html';
@@ -203,152 +382,15 @@ function leaveRoom() {
     }
 }
 
+document.getElementById('sizeRange').oninput = (e) => document.getElementById('sizeValue').innerText = e.target.value;
+document.getElementById('obstacleRange').oninput = (e) => document.getElementById('obstacleValue').innerText = e.target.value;
 document.getElementById('dissolveBtn').onclick = () => confirm('確定解散？') && roomRef.remove();
 document.getElementById('rematchBtn').onclick = () => initGameData();
 document.getElementById('resetBtn').onclick = () => initGameData();
 
-// --- 棋盤幾何 ---
-function getHexPos(q, r, size) {
-    return { x: size * 1.5 * q, y: size * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r) };
-}
-
-function getDistance(h1, h2) {
-    return (Math.abs(h1.q - h2.q) + Math.abs(h1.q + h1.r - h2.q - h2.r) + Math.abs(h1.r - h2.r)) / 2;
-}
-
-function initGameData() {
-    const radius = parseInt(document.getElementById('sizeRange').value);
-    const obsCount = parseInt(document.getElementById('obstacleRange').value);
-    let newGrid = [];
-    for(let q=-radius;q<=radius;q++){
-        for(let r=Math.max(-radius,-q-radius);r<=Math.min(radius,-q+radius);r++){
-            newGrid.push({ q, r, owner: 0, type: 'normal', scale: 1 });
-        }
-    }
-    const set = (q,r,o) => { const h = newGrid.find(x=>x.q===q && x.r===r); if(h) h.owner=o; };
-    set(0,-radius,1); set(-radius,radius,1); set(0,radius,2); set(radius,-radius,2);
-    
-    let emptyOnes = newGrid.filter(h => h.owner === 0);
-    for(let i=0; i<obsCount && emptyOnes.length>0; i++){
-        const idx = Math.floor(Math.random()*emptyOnes.length);
-        emptyOnes[idx].type = 'obstacle';
-        emptyOnes.splice(idx,1);
-    }
-    roomRef.update({ board: newGrid, currentTurnIndex: 0, status: 'playing', winner: null });
-}
-
-// --- 繪圖與互動 ---
-function draw() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    if (!grid.length) { requestAnimationFrame(draw); return; }
-    
-    const radius = Math.max(...grid.map(h=>Math.abs(h.q)));
-    hexSize = Math.min(canvas.width*0.9/(radius*3+1.5), canvas.height*0.9/((radius*2+1)*Math.sqrt(3)));
-    
-    grid.forEach(h => {
-        const p = getHexPos(h.q, h.r, hexSize);
-        const px = canvas.width/2 + p.x, py = canvas.height/2 + p.y;
-        
-        h.scale = h.scale || 1;
-        h.scale += (1 - h.scale) * 0.1;
-
-        ctx.beginPath();
-        for(let i=0;i<6;i++) ctx.lineTo(px + hexSize*0.95*h.scale*Math.cos(Math.PI/3*i), py + hexSize*0.95*h.scale*Math.sin(Math.PI/3*i));
-        ctx.closePath();
-        
-        let fill = '#333';
-        if(h.type==='obstacle') fill = '#555';
-        else if(h.owner===1) fill = '#00e5ff';
-        else if(h.owner===2) fill = '#ff5252';
-        
-        // 移動提示
-        if(selectedHex && h.owner === 0 && h.type === 'normal'){
-            const d = getDistance(selectedHex, h);
-            if(d === 1) fill = "rgba(0, 255, 0, 0.3)";
-            else if(d === 2) fill = "rgba(255, 255, 0, 0.3)";
-        }
-
-        ctx.fillStyle = fill;
-        ctx.fill();
-        ctx.strokeStyle = (hoveredHex === h) ? '#fff' : '#444';
-        ctx.lineWidth = (hoveredHex === h) ? 2 : 1;
-        ctx.stroke();
-
-        if(selectedHex === h) { ctx.strokeStyle = 'yellow'; ctx.lineWidth = 3; ctx.stroke(); }
-    });
-    requestAnimationFrame(draw);
-}
-
-// 點擊判定邏輯
-canvas.addEventListener('click', e => {
-    if(!currentData || currentData.status !== 'playing') return;
-    if(currentData.turnOrder[currentData.currentTurnIndex] !== username) return;
-    if(sidebar.classList.contains('active')) return; // 側欄開啟時不觸發
-
-    const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
-    
-    let clicked = null;
-    let minDist = Infinity;
-    grid.forEach(h => {
-        const p = getHexPos(h.q, h.r, hexSize);
-        const d = Math.hypot(canvas.width/2 + p.x - mx, canvas.height/2 + p.y - my);
-        if(d < hexSize && d < minDist) { minDist = d; clicked = h; }
-    });
-
-    if(!clicked) return;
-
-    if(clicked.owner === myColor) {
-        selectedHex = clicked;
-    } else if(selectedHex && clicked.owner === 0 && clicked.type === 'normal') {
-        const d = getDistance(selectedHex, clicked);
-        if(d <= 2) movePiece(selectedHex, clicked);
-    }
-});
-
-function movePiece(from, to) {
-    const newGrid = JSON.parse(JSON.stringify(grid));
-    const d = getDistance(from, to);
-    const target = newGrid.find(h => h.q === to.q && h.r === to.r);
-    if(d === 2) newGrid.find(h => h.q === from.q && h.r === from.r).owner = 0;
-    
-    target.owner = myColor;
-    target.scale = 0.5;
-
-    // 感染鄰居
-    newGrid.forEach(h => {
-        if(getDistance(target, h) === 1 && h.owner !== 0 && h.owner !== myColor) {
-            h.owner = myColor;
-            h.scale = 0.8;
-        }
-    });
-
-    selectedHex = null;
-    autoCloseSidebar();
-
-    // 檢查是否有落子點 (簡化：切換回合)
-    let nextIdx = (currentData.currentTurnIndex + 1) % 2;
-    roomRef.update({ board: newGrid, currentTurnIndex: nextIdx });
-}
-
-// --- UI 連動 ---
-function toggleSidebar() {
-    sidebar.classList.toggle('active');
-    toggleBtn.innerText = sidebar.classList.contains('active') ? '✕' : '☰';
-}
-function autoCloseSidebar() {
-    if (window.innerWidth <= 768) {
-        sidebar.classList.remove('active');
-        toggleBtn.innerText = '☰';
-    }
-}
-toggleBtn.onclick = (e) => { e.stopPropagation(); toggleSidebar(); };
-document.getElementById('sizeRange').oninput = (e) => document.getElementById('sizeValue').innerText = e.target.value;
-document.getElementById('obstacleRange').oninput = (e) => document.getElementById('obstacleValue').innerText = e.target.value;
-// 修正行動端 100vh 的問題
 function resetHeight(){
     document.body.style.height = window.innerHeight + "px";
+    sidebar.style.height = window.innerHeight + "px";
 }
 window.addEventListener('resize', resetHeight);
 resetHeight();

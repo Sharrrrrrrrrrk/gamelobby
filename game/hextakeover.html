@@ -19,28 +19,12 @@
         flex-direction:column; 
         gap:15px; 
         box-shadow:2px 0 15px rgba(0,0,0,0.5); 
-        z-index: 20; 
+        z-index: 100; /* 提高層級，確保在最上層 */
         transition: transform 0.3s ease;
-        /* 新增以下屬性 */
         box-sizing: border-box; 
+        position: relative;
     }
 
-    /* 讓中間的內容區塊自動填滿，把按鈕擠下去 */
-    .legend {
-        margin-top: auto; /* 將圖例與按鈕推向底部 */
-        padding-bottom: 10px;
-    }
-
-    @media (max-width: 768px) {
-        #sidebar { 
-            position: fixed; 
-            left: 0; 
-            top: 0; 
-            height: 100%; /* 使用 100% 替代 100vh 在行動端更穩定 */
-            padding-bottom: 40px; /* 增加底部留白，防止被手機系統條遮擋 */
-        }
-    }
-    
     #main { flex:1; display:flex; justify-content:center; align-items:center; position:relative; background: radial-gradient(circle, #252525 0%, #1a1a1a 100%); touch-action: none; }
     canvas { max-width:95%; max-height:95%; border-radius:15px; cursor:pointer; }
     
@@ -48,20 +32,36 @@
     .control-group { background: #3d3d3d; padding: 12px; border-radius: 10px; }
     label { display: block; font-size: 13px; margin-bottom: 5px; color: #ccc; }
     
-    button { padding:10px; cursor:pointer; background:#1a73e8; color:white; border:none; border-radius:8px; font-weight:bold; transition:0.2s; }
+    button { padding:10px; cursor:pointer; background:#1a73e8; color:white; border:none; border-radius:8px; font-weight:bold; transition:0.2s; flex-shrink: 0; }
     button:hover { background:#1557b0; transform:translateY(-2px); }
-    .secondary-btn { background: #555; margin-top: auto; }
     
+    .secondary-btn { background: #555; margin-top: 5px; }
     .status { font-size:18px; margin:10px 0; min-height:60px; line-height: 1.5; }
-    .legend { font-size:12px; color:#aaa; line-height: 1.8; border-top: 1px solid #444; padding-top: 10px; }
+    
+    .legend { 
+        font-size:12px; color:#aaa; line-height: 1.8; 
+        border-top: 1px solid #444; padding-top: 10px; 
+        margin-top: auto; 
+    }
     .dot { height:10px; width:10px; border-radius:50%; display:inline-block; margin-right: 8px; }
 
-    /* 手機版收縮機制 CSS */
+    /* 修正後的切換按鈕 */
     .toggle-btn {
-        position: absolute; right: -50px; top: 10px;
-        width: 40px; height: 40px; display: none;
-        background: #2d2d2d; color: white; border: none;
-        border-radius: 0 8px 8px 0; cursor: pointer; font-size: 20px;
+        position: absolute; 
+        right: -45px; /* 讓按鈕突出側邊欄 */
+        top: 20px;
+        width: 45px; 
+        height: 40px; 
+        display: none;
+        background: #2d2d2d; 
+        color: #00bcd4; 
+        border: 1px solid #444;
+        border-left: none;
+        border-radius: 0 8px 8px 0; 
+        cursor: pointer; 
+        font-size: 20px;
+        z-index: 101;
+        box-shadow: 3px 0 10px rgba(0,0,0,0.3);
     }
 
     #overlay {
@@ -70,7 +70,11 @@
     }
 
     @media (max-width: 768px) {
-        #sidebar { position: fixed; left: 0; top: 0; height: 100vh; transform: translateX(-100%); }
+        #sidebar { 
+            position: fixed; left: 0; top: 0; height: 100%; 
+            transform: translateX(-100%); 
+            overflow: visible; /* 重要：不剪掉突出的按鈕 */
+        }
         #sidebar.active { transform: translateX(0); }
         .toggle-btn { display: block; }
         #sidebar.active + #main #overlay { display: block; }
@@ -81,7 +85,8 @@
 <body>
 
 <div id="sidebar">
-    <button id="toggleBtn" class="toggle-btn">☰</button>
+    <button id="toggleBtn" class="toggle-btn" title="切換選單">☰</button>
+    
     <h3>⬢ 六角占地 (練習)</h3>
     <p id="welcomeMsg" style="font-size: 14px; color: #888;">載入中...</p>
 
@@ -95,9 +100,10 @@
         <input type="range" id="obstacleRange" min="0" max="15" value="3" style="width:100%">
     </div>
 
-    <button id="resetBtn">🔄 重置棋局</button>
+    <button id="resetBtn" style="background:#34a853">🔄 重置棋局</button>
     <button id="undoBtn" style="background:#673ab7">⬅️ 悔棋</button>
-    <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px; cursor: pointer;">
+    
+    <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px; cursor: pointer; font-size: 14px;">
         <input type="checkbox" id="aiToggle" checked> AI 玩家 (紅)
     </label>
 
@@ -109,7 +115,7 @@
         <div><span class="dot" style="background: rgba(128,128,128,0.8);"></span>障礙物</div>
     </div>
 
-    <button class="secondary-btn" onclick="goBack()" style="width: 100%; margin-top: 10px;">🏠 回到大廳</button>
+    <button class="secondary-btn" onclick="goBack()" style="width: 100%;">🏠 回到大廳</button>
 </div>
 
 <div id="main">
@@ -118,11 +124,9 @@
 </div>
 
 <script>
-// --- 基礎參數 ---
+// --- 初始化與基礎設定 ---
 const params = new URLSearchParams(location.search);
-const rid = params.get('roomId');
 const username = params.get('username') || "玩家";
-const roomRef = rid ? db.ref(`rooms/${rid}`) : null;
 document.getElementById('welcomeMsg').innerText = `你好，${username}`;
 
 const canvas = document.getElementById('gameCanvas');
@@ -139,7 +143,7 @@ const aiToggle = document.getElementById('aiToggle');
 
 let grid = [], hexSize, selectedHex=null, hoveredHex=null, currentPlayer=1, gameActive=true, boardRadius=3, history=[];
 
-// --- 收縮選單邏輯 ---
+// --- UI 連動邏輯 ---
 function toggleSidebar() {
     sidebar.classList.toggle('active');
     toggleBtn.innerText = sidebar.classList.contains('active') ? '✕' : '☰';
@@ -152,34 +156,29 @@ function autoCloseSidebar() {
     }
 }
 
-toggleBtn.onclick = (e) => {
+// 修正後的點擊處理
+toggleBtn.addEventListener('click', (e) => {
+    e.preventDefault();
     e.stopPropagation();
     toggleSidebar();
-};
+});
 
 function goBack() {
     if(confirm("確定要離開目前的棋局嗎？")) {
-        if(roomRef) {
-            roomRef.remove().then(() => location.href = '/index.html').catch(() => location.href = '/index.html');
-        } else {
-            location.href = '/index.html';
-        }
+        location.href = '/index.html';
     }
 }
 
 // --- 遊戲邏輯 ---
-sizeRange.oninput = ()=>{ sizeValue.innerText = sizeRange.value; }
-obstacleRange.oninput = ()=>{ obstacleValue.innerText = obstacleRange.value; }
-
 function saveHistory(){
-    history.push({ grid:grid.map(h=>({...h})), currentPlayer });
+    history.push({ grid: grid.map(h=>({...h})), currentPlayer });
     if(history.length > 50) history.shift();
 }
 
 function undoMove(){
-    if(history.length===0) return;
+    if(history.length === 0) return;
     let last;
-    if(aiToggle.checked && history.length>=2){
+    if(aiToggle.checked && history.length >= 2){
         history.pop();
         last = history.pop();
     } else {
@@ -188,49 +187,55 @@ function undoMove(){
     grid = last.grid.map(h=>({...h}));
     currentPlayer = last.currentPlayer;
     updateStatus();
+    selectedHex = null;
 }
 
 function setOwner(q,r,player){ const hex = grid.find(h=>h.q===q&&h.r===r); if(hex) hex.owner=player; }
-function getHexPos(q,r){ return { x: canvas.width/2 + hexSize*1.5*q, y: canvas.height/2 + hexSize*(Math.sqrt(3)/2*q + Math.sqrt(3)*r) }; }
+function getHexPos(q,r){ 
+    return { 
+        x: canvas.width/2 + hexSize * 1.5 * q, 
+        y: canvas.height/2 + hexSize * (Math.sqrt(3)/2 * q + Math.sqrt(3) * r) 
+    }; 
+}
 function getDistance(h1,h2){ return (Math.abs(h1.q-h2.q)+Math.abs(h1.q+h1.r-h2.q-h2.r)+Math.abs(h1.r-h2.r))/2; }
-function getNearestHex(mx,my){ let minDist=Infinity, nearest=null; grid.forEach(h=>{ let d=Math.hypot(h.x-mx,h.y-my); if(d<minDist){ minDist=d; nearest=h; } }); return minDist<hexSize*0.8 ? nearest : null; }
 
-function generateObstacles(count){
-    let emptyHexes = grid.filter(h => h.type === 'normal' && h.owner === 0);
-    for(let i=0;i<count;i++){
-        if(emptyHexes.length===0) break;
-        const idx=Math.floor(Math.random()*emptyHexes.length);
-        emptyHexes[idx].type='obstacle';
-        emptyHexes.splice(idx,1);
-    }
+function getNearestHex(mx,my){ 
+    let minDist=Infinity, nearest=null; 
+    grid.forEach(h=>{ 
+        let d=Math.hypot(h.x-mx,h.y-my); 
+        if(d<minDist){ minDist=d; nearest=h; } 
+    }); 
+    return minDist < hexSize * 0.8 ? nearest : null; 
 }
 
 function initGame(){
     boardRadius = parseInt(sizeRange.value);
     grid=[]; gameActive=true; currentPlayer=1; selectedHex=null; hoveredHex=null; history=[];
-    const padding=80;
-    hexSize = Math.min((canvas.width-padding)/(3*boardRadius+1), (canvas.height-padding)/(Math.sqrt(3)*(2*boardRadius+1)));
+    const padding = 80;
+    hexSize = Math.min((canvas.width-padding)/(3*boardRadius+1.5), (canvas.height-padding)/(Math.sqrt(3)*(2*boardRadius+1)));
 
-    for(let q=-boardRadius;q<=boardRadius;q++){
-        for(let r=Math.max(-boardRadius,-q-boardRadius); r<=Math.min(boardRadius,-q+radius); r++){
-            // 這裡修正一個你原本代碼中的 radius 未定義小錯誤，改用 boardRadius
-        }
-    }
-    // 重新寫迴圈確保安全
-    grid = [];
-    for(let q=-boardRadius;q<=boardRadius;q++){
+    for(let q=-boardRadius; q<=boardRadius; q++){
         for(let r=Math.max(-boardRadius,-q-boardRadius); r<=Math.min(boardRadius,-q+boardRadius); r++){
-            const pos=getHexPos(q,r);
-            grid.push({ q,r,x:pos.x,y:pos.y, owner:0, scale:1, ripple:0, type:'normal' });
+            const pos = getHexPos(q,r);
+            grid.push({ q, r, x:pos.x, y:pos.y, owner:0, scale:1, type:'normal' });
         }
     }
     
-    setOwner(0,-boardRadius,1);
-    setOwner(0,boardRadius,2);
-    setOwner(boardRadius,-boardRadius,2);
-    setOwner(-boardRadius,boardRadius,1);
+    // 初始化起手點
+    setOwner(0, -boardRadius, 1);
+    setOwner(0, boardRadius, 2);
+    setOwner(boardRadius, -boardRadius, 2);
+    setOwner(-boardRadius, boardRadius, 1);
 
-    generateObstacles(parseInt(obstacleRange.value));
+    // 障礙物
+    let count = parseInt(obstacleRange.value);
+    let emptyHexes = grid.filter(h => h.owner === 0);
+    for(let i=0; i<count && emptyHexes.length > 0; i++){
+        const idx = Math.floor(Math.random()*emptyHexes.length);
+        emptyHexes[idx].type = 'obstacle';
+        emptyHexes.splice(idx,1);
+    }
+
     updateStatus();
     autoCloseSidebar();
 }
@@ -238,26 +243,48 @@ function initGame(){
 function updateStatus(){
     const blue = grid.filter(h=>h.owner===1).length;
     const red = grid.filter(h=>h.owner===2).length;
-    const turnColor = currentPlayer===1?"#00e5ff":"#ff5252";
-    canvas.style.boxShadow = currentPlayer===1?"0 0 30px rgba(0,229,255,0.2)":"0 0 30px rgba(255,82,82,0.2)";
-    statusDiv.innerHTML=`
+    const turnColor = currentPlayer===1 ? "#00e5ff" : "#ff5252";
+    statusDiv.innerHTML = `
         <span style="color:#00e5ff">藍: ${blue}</span> | <span style="color:#ff5252">紅: ${red}</span><br>
-        <small>當前輪到: <b style="color:${turnColor}">${currentPlayer===1?'藍色(你)':'紅色'}</b></small>`;
+        <small>輪到: <b style="color:${turnColor}">${currentPlayer===1?'藍方(你)':'紅方'}</b></small>`;
+}
+
+function move(from, to){
+    saveHistory();
+    const d = getDistance(from, to);
+    if(d === 2) from.owner = 0; // 跳躍則清空原位
+    
+    to.owner = currentPlayer;
+    to.scale = 0.5; // 動畫效果
+
+    // 感染鄰近
+    grid.forEach(h => { 
+        if(getDistance(to,h) === 1 && h.owner !== 0 && h.owner !== currentPlayer){ 
+            h.owner = currentPlayer; h.scale = 0.8;
+        } 
+    });
+
+    selectedHex = null;
+    if(!checkGameOver()){
+        currentPlayer = currentPlayer === 1 ? 2 : 1;
+        updateStatus();
+        if(aiToggle.checked && currentPlayer === 2){ setTimeout(aiMove, 600); }
+    }
 }
 
 function checkGameOver(){
-    const blue=grid.filter(h=>h.owner===1).length;
-    const red=grid.filter(h=>h.owner===2).length;
-    const hasMove = (p) => grid.some(start=>start.owner===p && grid.some(end=>end.owner===0 && end.type==='normal' && getDistance(start,end)<=2));
-
+    const blue = grid.filter(h=>h.owner===1).length;
+    const red = grid.filter(h=>h.owner===2).length;
+    const hasMove = (p) => grid.some(start => start.owner === p && grid.some(end => end.owner === 0 && end.type === 'normal' && getDistance(start, end) <= 2));
+    
     if(blue === 0 || red === 0 || (!hasMove(1) && !hasMove(2))){
         gameActive = false;
-        let winnerMsg = blue > red ? "藍色勝利！" : red > blue ? "紅色勝利！" : "平手！";
+        let winnerMsg = blue > red ? "藍色勝利！" : (red > blue ? "紅色勝利！" : "平手！");
         statusDiv.innerHTML = `<b style="font-size:22px; color:#ffca28">${winnerMsg}</b><br><button onclick="initGame()">重新開始</button>`;
         return true;
     }
     if(!hasMove(currentPlayer)){
-        currentPlayer = currentPlayer===1?2:1;
+        currentPlayer = (currentPlayer === 1) ? 2 : 1;
         updateStatus();
     }
     return false;
@@ -265,109 +292,85 @@ function checkGameOver(){
 
 function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    grid.forEach(h=>{
-        h.scale += (1-h.scale)*0.15;
-        if(h.ripple>0) h.ripple*=0.92;
+    grid.forEach(h => {
+        h.scale += (1 - h.scale) * 0.15;
+        let fill = "#333";
+        if(h.type === 'obstacle') fill = "#555";
+        else if(h.owner === 1) fill = "#00e5ff";
+        else if(h.owner === 2) fill = "#ff5252";
         
-        let fill="#333";
-        if(h.type==='obstacle') fill="#555";
-        else if(h.owner===1) fill="#00e5ff";
-        else if(h.owner===2) fill="#ff5252";
-
-        if(selectedHex && h.owner===0 && h.type==='normal'){
-            const d=getDistance(selectedHex,h);
-            if(d===1) fill="rgba(0,255,0,0.2)";
-            else if(d===2) fill="rgba(255,255,0,0.2)";
+        // 顯示合法移動範圍
+        if(selectedHex && h.owner === 0 && h.type === 'normal'){
+            const d = getDistance(selectedHex, h);
+            if(d === 1) fill = "rgba(0, 255, 0, 0.25)";
+            else if(d === 2) fill = "rgba(255, 255, 0, 0.25)";
         }
 
         ctx.beginPath();
-        for(let i=0;i<6;i++){
-            const angle=Math.PI/3*i;
-            ctx.lineTo(h.x + hexSize*0.9*h.scale*Math.cos(angle), h.y + hexSize*0.9*h.scale*Math.sin(angle));
+        for(let i=0; i<6; i++){
+            const angle = Math.PI/3 * i;
+            ctx.lineTo(h.x + hexSize * 0.92 * h.scale * Math.cos(angle), h.y + hexSize * 0.92 * h.scale * Math.sin(angle));
         }
         ctx.closePath();
-        ctx.fillStyle=fill; ctx.fill();
-        ctx.strokeStyle="#444"; ctx.stroke();
+        ctx.fillStyle = fill; ctx.fill();
+        ctx.strokeStyle = (h === hoveredHex) ? "#fff" : "#444";
+        ctx.lineWidth = (h === hoveredHex) ? 2 : 1;
+        ctx.stroke();
 
-        if(h.ripple>0.05){
-            ctx.beginPath(); ctx.arc(h.x,h.y,hexSize*h.ripple*1.5,0,Math.PI*2);
-            ctx.strokeStyle=`rgba(255,255,255,${h.ripple})`; ctx.stroke();
-        }
-
-        if(h===hoveredHex){ ctx.strokeStyle="#fff"; ctx.lineWidth=2; ctx.stroke(); ctx.lineWidth=1; }
-        if(h===selectedHex){ ctx.strokeStyle="yellow"; ctx.lineWidth=3; ctx.stroke(); ctx.lineWidth=1; }
+        if(h === selectedHex){ ctx.strokeStyle = "yellow"; ctx.lineWidth = 3; ctx.stroke(); }
     });
     requestAnimationFrame(draw);
 }
 
-function move(from,to){
-    saveHistory();
-    const d=getDistance(from,to);
-    if(d===2) from.owner=0;
-    to.owner=currentPlayer;
-    to.scale=0.5;
-    
-    grid.forEach(h=>{ 
-        if(getDistance(to,h)===1 && h.owner!==0 && h.owner!==currentPlayer){ 
-            h.owner=currentPlayer; h.ripple=1; h.scale=0.8;
-        } 
-    });
-    
-    selectedHex=null;
-    if(!checkGameOver()){
-        currentPlayer = currentPlayer===1?2:1;
-        updateStatus();
-        if(aiToggle.checked && currentPlayer===2){ setTimeout(aiMove, 400); }
-    }
-}
-
-canvas.addEventListener('mousemove', e=>{
-    if(sidebar.classList.contains('active')) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left)*(canvas.width/rect.width);
-    const my = (e.clientY - rect.top)*(canvas.height/rect.height);
-    hoveredHex = getNearestHex(mx,my);
-});
-
-canvas.addEventListener('click', e=>{
-    if(!gameActive || sidebar.classList.contains('active')) return;
-    const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left)*(canvas.width/rect.width);
-    const my = (e.clientY - rect.top)*(canvas.height/rect.height);
-    const clickedHex = getNearestHex(mx,my);
-    if(!clickedHex) return;
-
-    if(clickedHex.owner===currentPlayer){
-        selectedHex = (selectedHex===clickedHex?null:clickedHex);
-    } else if(selectedHex && clickedHex.owner===0 && clickedHex.type==='normal'){
-        if(getDistance(selectedHex,clickedHex)<=2) move(selectedHex,clickedHex);
-    }
-});
-
 function aiMove(){
-    let moves=[];
-    grid.forEach(a=>{
-        if(a.owner!==2) return;
-        grid.forEach(b=>{
-            if(b.owner===0 && b.type==='normal' && getDistance(a,b)<=2){
-                let score=0;
-                grid.forEach(n=>{ if(getDistance(b,n)===1 && n.owner===1) score++; });
-                if(getDistance(a,b)===1) score += 0.5;
-                moves.push({a,b,score});
+    let moves = [];
+    grid.forEach(a => {
+        if(a.owner !== 2) return;
+        grid.forEach(b => {
+            if(b.owner === 0 && b.type === 'normal' && getDistance(a, b) <= 2){
+                let score = 0;
+                grid.forEach(n => { if(getDistance(b, n) === 1 && n.owner === 1) score++; });
+                if(getDistance(a, b) === 1) score += 0.5; // 複製優先於跳躍
+                moves.push({a, b, score});
             }
         });
     });
-    if(moves.length===0) { checkGameOver(); return; }
-    moves.sort((x,y)=>y.score-x.score);
+    if(moves.length === 0) { checkGameOver(); return; }
+    moves.sort((x, y) => y.score - x.score);
     move(moves[0].a, moves[0].b);
 }
 
-document.getElementById('undoBtn').onclick = ()=>undoMove();
-resetBtn.onclick = ()=>initGame();
+// --- 事件監聽 ---
+canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    hoveredHex = getNearestHex(mx, my);
+});
 
-// 修正行動端 100vh 的問題
+canvas.addEventListener('click', e => {
+    if(!gameActive || sidebar.classList.contains('active')) return;
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    const clicked = getNearestHex(mx, my);
+    if(!clicked) return;
+
+    if(clicked.owner === currentPlayer){
+        selectedHex = (selectedHex === clicked) ? null : clicked;
+    } else if(selectedHex && clicked.owner === 0 && clicked.type === 'normal'){
+        if(getDistance(selectedHex, clicked) <= 2) move(selectedHex, clicked);
+    }
+});
+
+sizeRange.oninput = () => sizeValue.innerText = sizeRange.value;
+obstacleRange.oninput = () => obstacleValue.innerText = obstacleRange.value;
+document.getElementById('undoBtn').onclick = () => undoMove();
+resetBtn.onclick = () => initGame();
+
 function resetHeight(){
     document.body.style.height = window.innerHeight + "px";
+    sidebar.style.height = window.innerHeight + "px";
 }
 window.addEventListener('resize', resetHeight);
 resetHeight();
