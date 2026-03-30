@@ -27,11 +27,62 @@
         padding: 30px; text-align: center; z-index: 100; min-width: 250px;
     }
     .secondary-btn { background: #555; margin-top: auto; }
+    /* 基礎樣式微調 */
+    .toggle-btn {
+        position: absolute;
+        right: -50px;
+        top: 10px;
+        width: 40px;
+        height: 40px;
+        display: none; /* 電腦版隱藏 */
+        background: #2d2d2d;
+        color: white;
+        border-radius: 0 8px 8px 0;
+    }
+
+    #overlay {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: none;
+        z-index: 5;
+    }
+
+    /* 手機版 (768px 以下) */
+    @media (max-width: 768px) {
+        #sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            transform: translateX(-100%); /* 預設隱藏在左側 */
+            transition: transform 0.3s ease;
+            z-index: 20;
+        }
+
+        #sidebar.active {
+            transform: translateX(0); /* 開啟時滑入 */
+        }
+
+        .toggle-btn {
+            display: block; /* 手機版顯示按鈕 */
+        }
+
+        #sidebar.active + #main #overlay {
+            display: block; /* 開啟時顯示遮罩 */
+        }
+        
+        /* 調整畫布容器，避免被側欄擋住點擊 */
+        #main {
+            width: 100vw;
+        }
+    }
 </style>
 </head>
 <body>
 
 <div id="sidebar">
+    <button id="toggleBtn" class="toggle-btn">☰</button>
     <h3>⬢ 六角占地 (連線)</h3>
     <p id="welcomeMsg" style="font-size: 14px; color: #888;">載入中...</p>
 
@@ -64,6 +115,7 @@
 </div>
 
 <div id="main">
+    <div id="overlay" onclick="toggleSidebar()"></div>
     <canvas id="gameCanvas" width="800" height="800"></canvas>
 </div>
 
@@ -207,6 +259,36 @@ function draw() {
     });
     requestAnimationFrame(draw);
 }
+const sidebar = document.getElementById('sidebar');
+const toggleBtn = document.getElementById('toggleBtn');
+const overlay = document.getElementById('overlay');
+
+function toggleSidebar() {
+    sidebar.classList.toggle('active');
+    // 如果側欄開啟，按鈕文字變更為 X，否則變回 ☰
+    toggleBtn.innerText = sidebar.classList.contains('active') ? '✕' : '☰';
+}
+
+// 綁定按鈕點擊事件
+toggleBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleSidebar();
+};
+
+// 當遊戲結束或切換回合時，手機版可以自動縮回（選配）
+function autoCloseSidebar() {
+    if (window.innerWidth <= 768) {
+        sidebar.classList.remove('active');
+        toggleBtn.innerText = '☰';
+    }
+}
+
+// 修改你原本的 performMove 或執行移動的地方，加上自動縮回
+// 例如：
+// function movePiece(...) {
+//    ... 原本邏輯 ...
+//    autoCloseSidebar();
+// }
 draw();
 </script>
 </body>
