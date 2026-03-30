@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>1A2B 對戰</title>
+    <title>1A2B 動態對戰版</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="../firebase.js"></script>
@@ -13,55 +13,55 @@
         .turn-indicator { text-align: center; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; background: #3d3d3d; }
         .active-turn { background: #4285f4; box-shadow: 0 0 15px #4285f4; }
         .history-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
-        .player-log { background: #3d3d3d; padding: 10px; border-radius: 8px; font-size: 13px; max-height: 200px; overflow-y: auto; }
+        .player-log { background: #3d3d3d; padding: 10px; border-radius: 8px; font-size: 13px; max-height: 250px; overflow-y: auto; }
+        
+        /* 設定位數的區塊 */
+        .settings-bar { background: #444; padding: 10px; border-radius: 8px; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
+        select { background: #1a1a1a; color: white; border: 1px solid #666; padding: 5px; border-radius: 4px; }
+
         input { width: 100%; padding: 15px; background: #1a1a1a; border: 2px solid #444; border-radius: 8px; color: white; font-size: 20px; text-align: center; box-sizing: border-box; }
         input:focus { border-color: #4285f4; outline: none; }
-        button { width: 100%; padding: 15px; background: #34a853; border: none; border-radius: 8px; color: white; font-size: 18px; margin-top: 10px; cursor: pointer; }
+        button { width: 100%; padding: 15px; background: #34a853; border: none; border-radius: 8px; color: white; font-size: 18px; margin-top: 10px; cursor: pointer; font-weight: bold; }
         button:disabled { background: #555; cursor: not-allowed; }
-        /* 遊戲結束後的控制區 */
-        #endGameMenu {
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #555;
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
         
-        .btn-restart { background: #34a853 !important; margin-bottom: 10px; }
-        .btn-restart:hover { background: #2d9249 !important; }
-        
-        .btn-close { background: #d93025 !important; }
-        .btn-close:hover { background: #b3261e !important; }
-        
-        .btn-leave { background: #5f6368 !important; margin-top: 15px; }
-        
-        #winnerMsg {
-            font-size: 24px;
-            color: #ffca28;
-            margin-bottom: 15px;
-            text-shadow: 0 0 10px rgba(255, 202, 40, 0.5);
-        }
+        #endGameMenu { background: rgba(0, 0, 0, 0.9); border: 2px solid #555; border-radius: 12px; padding: 20px; text-align: center; margin-top: 20px; }
+        #winnerMsg { font-size: 24px; color: #ffca28; margin-bottom: 15px; }
     </style>
 </head>
 <body>
     <div class="game-card">
         <div id="turnBox" class="turn-indicator">載入中...</div>
-        <input id="guess" type="text" maxlength="4" placeholder="輸入 4 位不重複數字">
+
+        <div class="settings-bar">
+            <span>遊戲位數：<strong id="digitDisplay">4</strong> 位</span>
+            <div id="hostSettings" style="display:none;">
+                <select id="digitSelect">
+                    <option value="3">3 位</option>
+                    <option value="4" selected>4 位</option>
+                    <option value="5">5 位</option>
+                    <option value="6">6 位</option>
+                    <option value="7">7 位</option>
+                    <option value="8">8 位</option>
+                    <option value="9">9 位</option>
+                    <option value="10">10 位</option>
+                </select>
+                <button id="applyDigitBtn" style="width:auto; padding:5px 10px; font-size:12px; margin:0; margin-left:5px;">套用</button>
+            </div>
+        </div>
+
+        <input id="guess" type="text" placeholder="請輸入數字">
         <button id="submitBtn">送出猜測</button>
         
         <div class="history-grid" id="history"></div>
 
-        <div id="endGameMenu" style="display:none; margin-top: 20px; border-top: 2px dashed #555; padding-top: 20px;">
+        <div id="endGameMenu" style="display:none;">
             <h3 style="color: #ffca28;">遊戲結束！</h3>
             <div id="winnerMsg"></div>
-            
             <div id="hostEndControls" style="display:none;">
-                <button id="restartBtn" style="background: #34a853; margin-bottom: 5px;">再戰一場 (房主)</button>
-                <button id="closeRoomBtn" style="background: #d93025;">直接解散房間</button>
+                <button onclick="resetWithCurrentDigits()" style="background: #34a853;">再戰一場</button>
+                <button onclick="if(confirm('確定解散？')) roomRef.remove()" style="background: #d93025;">解散房間</button>
             </div>
-        
-            <button onclick="leaveRoom()" style="background: #666; margin-top: 10px;">離開並回首頁</button>
+            <button onclick="leaveRoom()" style="background: #666; margin-top: 10px;">回大廳</button>
         </div>
     </div>
 
@@ -69,133 +69,139 @@
         const params = new URLSearchParams(location.search);
         const rid = params.get('roomId'), user = params.get('username');
         const roomRef = db.ref(`rooms/${rid}`);
+        let currentDigitCount = 4;
 
         roomRef.on('value', snap => {
             const data = snap.val();
-            
-            // 1. 監聽房間是否被刪除 (解散)
-            if (!data) {
-                alert("房間已被房主關閉，即將返回大廳。");
-                location.href = '/index.html';
-                return;
-            }
-        
-            // 2. 判定勝負與顯示菜單
-            if (data.status === 'finished') {
-                const menu = document.getElementById('endGameMenu');
-                const winMsg = document.getElementById('winnerMsg');
-                const hostCtrl = document.getElementById('hostEndControls');
-                
-                menu.style.display = 'block';
-                winMsg.innerText = `🏆 贏家：${data.winner}`;
-                document.getElementById('submitBtn').disabled = true;
-        
-                // 如果是房主，顯示重開與解散按鈕
-                if (data.host === user) {
-                    hostCtrl.style.display = 'block';
-                    
-                    // 重新開始
-                    document.getElementById('restartBtn').onclick = () => {
-                        resetGame(data.turnOrder);
-                    };
-        
-                    // 解散房間
-                    document.getElementById('closeRoomBtn').onclick = () => {
-                        if(confirm("確定要解散房間嗎？所有資料將會被清除。")) {
-                            roomRef.remove(); // 徹底刪除房間節點
-                        }
-                    };
-                }
-            } else {
-                // 若遊戲狀態非 finished，確保菜單隱藏 (重開局時會用到)
-                document.getElementById('endGameMenu').style.display = 'none';
+            if (!data) { location.href = '/index.html'; return; }
+
+            // 更新當前位數設定
+            currentDigitCount = data.gameData.digitCount || 4;
+            document.getElementById('digitDisplay').innerText = currentDigitCount;
+            document.getElementById('guess').maxLength = currentDigitCount;
+            document.getElementById('guess').placeholder = `輸入 ${currentDigitCount} 位不重複數字`;
+
+            // 房主權限顯示
+            if (data.host === user) {
+                document.getElementById('hostSettings').style.display = 'block';
+                document.getElementById('hostEndControls').style.display = 'block';
             }
 
-            const nowUser = data.turnOrder[data.currentTurnIndex];
-            const isMe = nowUser === user;
-            const tBox = document.getElementById('turnBox');
-            tBox.innerText = isMe ? "⭐ 輪到你了！" : `等待 ${nowUser}...`;
-            tBox.className = isMe ? "turn-indicator active-turn" : "turn-indicator";
-            document.getElementById('submitBtn').disabled = !isMe;
+            // 狀態判定
+            if (data.status === 'finished') {
+                document.getElementById('endGameMenu').style.display = 'block';
+                document.getElementById('winnerMsg').innerText = `🏆 贏家：${data.winner}\n答案是：${data.gameData.secret}`;
+                document.getElementById('submitBtn').disabled = true;
+            } else {
+                document.getElementById('endGameMenu').style.display = 'none';
+                const nowUser = data.turnOrder[data.currentTurnIndex];
+                const isMe = nowUser === user;
+                const tBox = document.getElementById('turnBox');
+                tBox.innerText = isMe ? "⭐ 輪到你了！" : `等待 ${nowUser}...`;
+                tBox.className = isMe ? "turn-indicator active-turn" : "turn-indicator";
+                document.getElementById('submitBtn').disabled = !isMe;
+            }
 
             // 渲染歷史
             const hist = document.getElementById('history'); hist.innerHTML = '';
             data.turnOrder.forEach(p => {
-                const logs = data.players[p];
+                const logs = data.players[p] || {};
                 const div = document.createElement('div'); div.className = 'player-log';
                 div.innerHTML = `<strong>${p}</strong><hr style="border:#555 1px solid">`;
-                Object.keys(logs).forEach(k => { if(k!=='joined') div.innerHTML += `<div>${logs[k].guess} → ${logs[k].result}</div>`; });
+                Object.keys(logs).forEach(k => { 
+                    if(k!=='joined') div.innerHTML += `<div>${logs[k].guess} → ${logs[k].result}</div>`; 
+                });
                 hist.appendChild(div);
             });
         });
 
+        // 房主修改位數
+        document.getElementById('applyDigitBtn').onclick = () => {
+            const newDigit = parseInt(document.getElementById('digitSelect').value);
+            if(confirm(`修改為 ${newDigit} 位數將會重置當前對局，確定嗎？`)) {
+                resetGameWithDigits(newDigit);
+            }
+        };
+
+        function resetWithCurrentDigits() {
+            resetGameWithDigits(currentDigitCount);
+        }
+
+        function resetGameWithDigits(digitCount) {
+            roomRef.once('value').then(snap => {
+                const data = snap.val();
+                const playerList = data.turnOrder;
+                
+                // 產生新位數謎底
+                let n = []; 
+                while(n.length < digitCount){ 
+                    let r = Math.floor(Math.random() * 10).toString(); 
+                    if(!n.includes(r)) n.push(r); 
+                }
+                const newSecret = n.join('');
+
+                const resetPlayers = {};
+                playerList.forEach(p => { resetPlayers[p] = { joined: true }; });
+
+                roomRef.update({
+                    status: 'playing',
+                    winner: null,
+                    currentTurnIndex: 0,
+                    gameData: { secret: newSecret, digitCount: digitCount },
+                    players: resetPlayers
+                });
+            });
+        }
+
         document.getElementById('submitBtn').onclick = () => {
             const val = document.getElementById('guess').value;
-            if(val.length!==4 || new Set(val).size!==4) return alert("請輸入 4 位不重複數字");
+            if(val.length !== currentDigitCount || new Set(val).size !== currentDigitCount) {
+                return alert(`請輸入 ${currentDigitCount} 位不重複數字`);
+            }
             
             roomRef.once('value').then(s => {
                 const d = s.val();
                 const res = calc(d.gameData.secret, val);
                 const up = {};
                 up[`players/${user}/${Date.now()}`] = { guess:val, result:res };
-                if(res==='4A0B') { up.status='finished'; up.winner=user; }
-                else { up.currentTurnIndex = (d.currentTurnIndex+1)%d.turnOrder.length; }
+                
+                if(res === `${currentDigitCount}A0B`) { 
+                    up.status = 'finished'; 
+                    up.winner = user; 
+                } else { 
+                    up.currentTurnIndex = (d.currentTurnIndex + 1) % d.turnOrder.length; 
+                }
                 roomRef.update(up);
                 document.getElementById('guess').value = '';
             });
         };
-        // 重新開始遊戲邏輯
-        function resetGame(playerList) {
-            // 重新產生謎底
-            let n = []; 
-            while(n.length < 4){ 
-                let r = Math.floor(Math.random() * 10).toString(); 
-                if(!n.includes(r)) n.push(r); 
+
+        function calc(s, g) {
+            let a=0, b=0;
+            for(let i=0; i<s.length; i++) { 
+                if(g[i]===s[i]) a++; 
+                else if(s.includes(g[i])) b++; 
             }
-            const newSecret = n.join('');
-        
-            // 重設玩家狀態 (清空舊猜測)
-            const resetPlayers = {};
-            playerList.forEach(p => { resetPlayers[p] = { joined: true }; });
-        
-            // 一次性更新所有狀態
-            roomRef.update({
-                status: 'playing',
-                winner: null,
-                currentTurnIndex: 0,
-                gameData: { secret: newSecret },
-                players: resetPlayers
-            });
+            return `${a}A${b}B`;
         }
 
-        // 玩家主動離開邏輯
         function leaveRoom() {
-            if(confirm("確定要離開遊戲嗎？")) {
+            if(confirm("確定離開？")) {
                 roomRef.once('value').then(snap => {
                     const data = snap.val();
-                    if (!data) return location.href = '/index.html';
-        
+                    if (!data) { location.href = '/index.html'; return; }
                     if (data.host === user) {
-                        // 房主離開直接解散
                         roomRef.remove().then(() => location.href = '/index.html');
                     } else {
-                        // 一般玩家離開，移除名單
                         const newOrder = data.turnOrder.filter(p => p !== user);
                         roomRef.update({
                             [`players/${user}`]: null,
                             turnOrder: newOrder,
-                            // 若剛好輪到此人離開，重設回合指針
                             currentTurnIndex: 0 
                         }).then(() => location.href = '/index.html');
                     }
                 });
             }
-        }
-
-        function calc(s, g) {
-            let a=0, b=0;
-            for(let i=0; i<4; i++) { if(g[i]===s[i]) a++; else if(s.includes(g[i])) b++; }
-            return `${a}A${b}B`;
         }
     </script>
 </body>
