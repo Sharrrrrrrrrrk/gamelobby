@@ -31,6 +31,7 @@
             <select id="gameType">
                 <option value="1a2b">1A2B 猜數字</option>
                 <option value="Hextakeover">六角占地</option>
+                <option value="hextakeovermultiplayer">六角占地(雙人)</option>
                 <option value="Othello">黑白棋</option>
                 <option value="ConnectFour">四子棋</option>
                 <option value="Gomoku">五子棋</option>
@@ -99,6 +100,7 @@
             let maxP = 5; 
             switch(gType) {
                 case 'Hextakeover': maxP = 1; break;
+                case 'hextakeovermultiplayer': maxP = 2; break;
                 case '1a2b': maxP = 5; break;
                 case 'Othello': maxP = 2; break;
                 case 'ConnectFour': maxP = 2; break;

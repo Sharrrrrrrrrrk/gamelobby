@@ -52,6 +52,9 @@
                     // 請確認你的檔案名稱是 hextakeover.html 還是 hex.html
                     targetPage = '/game/hextakeover.html'; 
                     break;
+                case 'hextakeovermultiplayer':
+                    targetPage = '/game/hextakeovermultiplayer.html';
+                    break;
                 case 'Othello':
                     targetPage = '/game/Othello.html';
                     break;
@@ -108,6 +111,9 @@
     
                 case 'Hextakeover':
                     updates['gameData'] = { mode: 'single-player-practice' };
+                    break;
+                case 'hextakeovermultiplayer':
+                    updates['gameData'] = { mode: 'multiplayer' };  
                     break;
 
                 case 'Othello':
