@@ -119,7 +119,7 @@
                 if (gType === 'Hextakeover') {
                     // 單人遊戲直接自動啟動，跳過 lobby
                     db.ref(`rooms/${rid}`).update({ status: 'playing' }).then(() => {
-                        location.href = `hextakeover.html?roomId=${rid}&username=${encodeURIComponent(name)}`;
+                        location.href = `/game/hextakeover.html?roomId=${rid}&username=${encodeURIComponent(name)}`;
                     });
                 } else {
                     location.href = `lobby.html?roomId=${rid}&username=${encodeURIComponent(name)}`;
