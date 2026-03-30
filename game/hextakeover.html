@@ -12,9 +12,33 @@
     
     /* 側邊欄基礎樣式 */
     #sidebar { 
-        width:260px; background:#2d2d2d; padding:20px; display:flex; flex-direction:column; 
-        gap:15px; box-shadow:2px 0 15px rgba(0,0,0,0.5); z-index: 20; 
+        width:260px; 
+        background:#2d2d2d; 
+        padding:20px; 
+        display:flex; 
+        flex-direction:column; 
+        gap:15px; 
+        box-shadow:2px 0 15px rgba(0,0,0,0.5); 
+        z-index: 20; 
         transition: transform 0.3s ease;
+        /* 新增以下屬性 */
+        box-sizing: border-box; 
+    }
+
+    /* 讓中間的內容區塊自動填滿，把按鈕擠下去 */
+    .legend {
+        margin-top: auto; /* 將圖例與按鈕推向底部 */
+        padding-bottom: 10px;
+    }
+
+    @media (max-width: 768px) {
+        #sidebar { 
+            position: fixed; 
+            left: 0; 
+            top: 0; 
+            height: 100%; /* 使用 100% 替代 100vh 在行動端更穩定 */
+            padding-bottom: 40px; /* 增加底部留白，防止被手機系統條遮擋 */
+        }
     }
     
     #main { flex:1; display:flex; justify-content:center; align-items:center; position:relative; background: radial-gradient(circle, #252525 0%, #1a1a1a 100%); touch-action: none; }
@@ -85,7 +109,7 @@
         <div><span class="dot" style="background: rgba(128,128,128,0.8);"></span>障礙物</div>
     </div>
 
-    <button class="secondary-btn" onclick="goBack()">🏠 回到大廳</button>
+    <button class="secondary-btn" onclick="goBack()" style="width: 100%; margin-top: 10px;">🏠 回到大廳</button>
 </div>
 
 <div id="main">
@@ -340,6 +364,13 @@ function aiMove(){
 
 document.getElementById('undoBtn').onclick = ()=>undoMove();
 resetBtn.onclick = ()=>initGame();
+
+// 修正行動端 100vh 的問題
+function resetHeight(){
+    document.body.style.height = window.innerHeight + "px";
+}
+window.addEventListener('resize', resetHeight);
+resetHeight();
 
 initGame();
 draw();
