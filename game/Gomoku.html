@@ -2,16 +2,35 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>五子棋連線對戰</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>五子棋 RWD 連線對戰</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
     <script src="../firebase.js"></script>
     <style>
-        body { font-family: sans-serif; background: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; padding: 15px; margin: 0; }
-        .game-card { background: #2d2d2d; border-radius: 15px; padding: 15px; width: 100%; max-width: 600px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, sans-serif; 
+            background: #1a1a1a; 
+            color: white; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 10px; 
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        .game-card { 
+            background: #2d2d2d; 
+            border-radius: 15px; 
+            padding: 15px; 
+            width: 100%; 
+            max-width: 600px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); 
+            box-sizing: border-box; 
+        }
         
-        /* 棋盤容器：解決邊距不清楚的問題 */
+        /* 棋盤容器 RWD */
         #board-container {
             width: 100%;
             aspect-ratio: 1 / 1;
@@ -19,9 +38,7 @@
             border: 2px solid #3d2b1f;
             box-sizing: border-box;
             margin: 15px 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            display: block;
         }
 
         #board { 
@@ -29,31 +46,30 @@
             grid-template-columns: repeat(15, 1fr); 
             width: 100%;
             height: 100%;
-            grid-gap: 0; 
         }
 
-        /* 棋格設計：使用 border 確保線條全滿 */
         .cell { 
             position: relative;
+            aspect-ratio: 1 / 1;
             display: flex; 
             justify-content: center; 
             align-items: center; 
             cursor: pointer;
             box-sizing: border-box;
-            border-right: 1px solid rgba(61, 43, 31, 0.4);
-            border-bottom: 1px solid rgba(61, 43, 31, 0.4);
+            /* 線條變細，適應小螢幕 */
+            border-right: 0.5px solid rgba(61, 43, 31, 0.3);
+            border-bottom: 0.5px solid rgba(61, 43, 31, 0.3);
         }
 
-        /* 移除最右邊與最下邊的重複線條 */
         .cell:nth-child(15n) { border-right: none; }
         .cell:nth-last-child(-n+15) { border-bottom: none; }
 
-        /* 五子棋星點 (4,4), (4,12), (8,8), (12,4), (12,12) */
+        /* 星點 RWD */
         .star-point::after {
             content: "";
             position: absolute;
-            width: 6px;
-            height: 6px;
+            width: 15%;
+            height: 15%;
             background: #3d2b1f;
             border-radius: 50%;
             z-index: 1;
@@ -61,38 +77,64 @@
 
         /* 棋子樣式 */
         .piece { 
-            width: 85%; 
-            height: 85%; 
+            width: 90%; 
+            height: 90%; 
             border-radius: 50%; 
             z-index: 2;
-            animation: drop 0.1s ease-out;
-            box-shadow: 1px 2px 4px rgba(0,0,0,0.4);
+            animation: drop 0.15s ease-out;
+            box-shadow: 1px 2px 3px rgba(0,0,0,0.4);
         }
-        .piece.black { background: #000; background: radial-gradient(circle at 30% 30%, #444, #000); }
-        .piece.white { background: #fff; background: radial-gradient(circle at 30% 30%, #fff, #ccc); }
+        .piece.black { background: radial-gradient(circle at 30% 30%, #444, #000); }
+        .piece.white { background: radial-gradient(circle at 30% 30%, #fff, #ccc); border: 0.5px solid #bbb; }
 
         @keyframes drop {
-            0% { transform: scale(1.3); opacity: 0; }
+            0% { transform: scale(1.4); opacity: 0; }
             100% { transform: scale(1); opacity: 1; }
         }
 
-        /* 最後落子紅點標記 */
         .last-move-marker {
-            width: 8px;
-            height: 8px;
+            width: 25%;
+            height: 25%;
             background: #ff5252;
-            border: 1.5px solid white;
+            border: 1px solid white;
             border-radius: 50%;
             position: absolute;
             z-index: 3;
             pointer-events: none;
         }
 
-        .turn-indicator { text-align: center; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-weight: bold; background: #3d3d3d; font-size: 1.1em; }
+        .turn-indicator { 
+            text-align: center; 
+            padding: 12px; 
+            border-radius: 8px; 
+            margin-bottom: 10px; 
+            font-weight: bold; 
+            background: #3d3d3d; 
+            font-size: 1rem; 
+        }
         .active-turn { background: #4285f4; box-shadow: 0 0 15px rgba(66, 133, 244, 0.5); }
         
-        #endGameMenu { background: rgba(0, 0, 0, 0.95); border: 2px solid #555; border-radius: 12px; padding: 20px; text-align: center; margin-top: 20px; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 8px; color: white; cursor: pointer; margin-top: 10px; font-weight: bold; }
+        .menu-overlay { 
+            background: rgba(0, 0, 0, 0.9); 
+            border-radius: 12px; 
+            padding: 20px; 
+            text-align: center; 
+            margin-top: 15px; 
+        }
+        button { 
+            width: 100%; 
+            padding: 12px; 
+            border: none; 
+            border-radius: 8px; 
+            color: white; 
+            cursor: pointer; 
+            margin-top: 10px; 
+            font-weight: bold; 
+            font-size: 1rem;
+        }
+
+        /* 移除手機端點擊灰框 */
+        * { -webkit-tap-highlight-color: transparent; }
     </style>
 </head>
 <body>
@@ -104,12 +146,12 @@
         <div id="board"></div>
     </div>
 
-    <div id="endGameMenu" style="display:none;">
+    <div id="endGameMenu" class="menu-overlay" style="display:none;">
         <h3 style="color: #ffca28; margin-top: 0;">遊戲結束</h3>
-        <div id="winnerMsg" style="font-size: 20px; margin-bottom: 15px; color: white;"></div>
+        <div id="winnerMsg" style="font-size: 1.1rem; margin-bottom: 15px;"></div>
         <div id="hostEndControls" style="display:none;">
-            <button id="restartBtn" style="background: #34a853;">重新開局 (房主)</button>
-            <button id="closeRoomBtn" style="background: #d93025;">關閉並解散房間</button>
+            <button id="restartBtn" style="background: #34a853;">重新開局</button>
+            <button id="closeRoomBtn" style="background: #d93025;">解散房間</button>
         </div>
         <button onclick="location.href='/index.html'" style="background: #666;">返回大廳</button>
     </div>
@@ -122,8 +164,8 @@
 
     const SIZE = 15;
     const initBoard = Array(SIZE * SIZE).fill(0);
-    // 五子棋標準星點座標
     const starIndices = [48, 56, 112, 168, 176]; 
+    let previousBoard = Array(SIZE * SIZE).fill(0);
 
     roomRef.on('value', snap => {
         const data = snap.val();
@@ -133,7 +175,7 @@
         const isMyTurn = (data.turnOrder[data.currentTurnIndex] === user);
         
         const tBox = document.getElementById('turnBox');
-        tBox.innerText = isMyTurn ? `⭐ 輪到你了 (${myColor===1?'黑子':'白子'})` : `等待對方落子...`;
+        tBox.innerText = isMyTurn ? `⭐ 你的回合 (${myColor===1?'黑子':'白子'})` : `等待對手落子...`;
         tBox.className = isMyTurn ? "turn-indicator active-turn" : "turn-indicator";
 
         renderBoard(data.board || initBoard, isMyTurn, myColor, data.lastMove);
@@ -149,30 +191,46 @@
 
     function renderBoard(boardData, isMyTurn, myColor, lastMove) {
         const boardEl = document.getElementById('board');
-        boardEl.innerHTML = '';
+        
+        // 初始化格子（僅執行一次）
+        if (boardEl.children.length === 0) {
+            boardData.forEach((_, i) => {
+                const div = document.createElement('div');
+                div.className = 'cell';
+                div.id = `cell-${i}`;
+                if (starIndices.includes(i)) div.classList.add('star-point');
+                boardEl.appendChild(div);
+            });
+        }
 
         boardData.forEach((cell, i) => {
-            const div = document.createElement('div');
-            div.className = 'cell';
-            if (starIndices.includes(i)) div.classList.add('star-point');
+            const cellDiv = document.getElementById(`cell-${i}`);
+            
+            // 點擊事件更新
+            cellDiv.onclick = (isMyTurn && cell === 0) ? () => handleMove(i, myColor, boardData) : null;
 
-            if (cell !== 0) {
-                const p = document.createElement('div');
-                p.className = `piece ${cell === 1 ? 'black' : 'white'}`;
-                div.appendChild(p);
-                if (i === lastMove) {
-                    const marker = document.createElement('div');
-                    marker.className = 'last-move-marker';
-                    div.appendChild(marker);
+            // 局部更新棋子
+            if (cell !== previousBoard[i]) {
+                cellDiv.innerHTML = '';
+                if (cell !== 0) {
+                    const p = document.createElement('div');
+                    p.className = `piece ${cell === 1 ? 'black' : 'white'}`;
+                    // 只有最後一手有動畫
+                    if (i !== lastMove) p.style.animation = 'none';
+                    cellDiv.appendChild(p);
                 }
-            } else if (isMyTurn) {
-                div.onclick = () => handleMove(i, myColor, boardData);
-                // 懸停預覽
-                div.onmouseover = () => div.style.background = "rgba(0,0,0,0.1)";
-                div.onmouseout = () => div.style.background = "transparent";
             }
-            boardEl.appendChild(div);
+
+            // 更新標記
+            const oldMarker = cellDiv.querySelector('.last-move-marker');
+            if (oldMarker) oldMarker.remove();
+            if (cell !== 0 && i === lastMove) {
+                const marker = document.createElement('div');
+                marker.className = 'last-move-marker';
+                cellDiv.appendChild(marker);
+            }
         });
+        previousBoard = [...boardData];
     }
 
     function handleMove(index, color, board) {
@@ -215,6 +273,7 @@
     }
 
     document.getElementById('restartBtn').onclick = () => {
+        previousBoard = Array(SIZE * SIZE).fill(0);
         roomRef.update({ status: 'playing', board: initBoard, currentTurnIndex: 0, winner: null, lastMove: null });
     };
 
