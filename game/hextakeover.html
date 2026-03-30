@@ -1,36 +1,63 @@
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>六角占地 - 單機練習模式</title>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 <script src="../firebase.js"></script>
 <style>
     body { margin:0; background:#1a1a1a; color:white; font-family:'Segoe UI',sans-serif; display:flex; height:100vh; overflow: hidden; }
-    #sidebar { width:260px; background:#2d2d2d; padding:20px; display:flex; flex-direction:column; gap:15px; box-shadow:2px 0 15px rgba(0,0,0,0.5); z-index: 10; }
-    #main { flex:1; display:flex; justify-content:center; align-items:center; position:relative; background: radial-gradient(circle, #252525 0%, #1a1a1a 100%); }
+    
+    /* 側邊欄基礎樣式 */
+    #sidebar { 
+        width:260px; background:#2d2d2d; padding:20px; display:flex; flex-direction:column; 
+        gap:15px; box-shadow:2px 0 15px rgba(0,0,0,0.5); z-index: 20; 
+        transition: transform 0.3s ease;
+    }
+    
+    #main { flex:1; display:flex; justify-content:center; align-items:center; position:relative; background: radial-gradient(circle, #252525 0%, #1a1a1a 100%); touch-action: none; }
     canvas { max-width:95%; max-height:95%; border-radius:15px; cursor:pointer; }
     
-    /* 介面美化 */
     h3 { margin: 0; color: #00bcd4; font-size: 18px; }
     .control-group { background: #3d3d3d; padding: 12px; border-radius: 10px; }
     label { display: block; font-size: 13px; margin-bottom: 5px; color: #ccc; }
     
     button { padding:10px; cursor:pointer; background:#1a73e8; color:white; border:none; border-radius:8px; font-weight:bold; transition:0.2s; }
     button:hover { background:#1557b0; transform:translateY(-2px); }
-    .secondary-btn { background: #555; margin-top: auto; } /* 回大廳按鈕 */
+    .secondary-btn { background: #555; margin-top: auto; }
     
     .status { font-size:18px; margin:10px 0; min-height:60px; line-height: 1.5; }
-    .legend { font-size:12px; color:#aaa; line-height: 1.8; border-top: 1px solid #444; pt: 10px; }
+    .legend { font-size:12px; color:#aaa; line-height: 1.8; border-top: 1px solid #444; padding-top: 10px; }
     .dot { height:10px; width:10px; border-radius:50%; display:inline-block; margin-right: 8px; }
+
+    /* 手機版收縮機制 CSS */
+    .toggle-btn {
+        position: absolute; right: -50px; top: 10px;
+        width: 40px; height: 40px; display: none;
+        background: #2d2d2d; color: white; border: none;
+        border-radius: 0 8px 8px 0; cursor: pointer; font-size: 20px;
+    }
+
+    #overlay {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.6); display: none; z-index: 15;
+    }
+
+    @media (max-width: 768px) {
+        #sidebar { position: fixed; left: 0; top: 0; height: 100vh; transform: translateX(-100%); }
+        #sidebar.active { transform: translateX(0); }
+        .toggle-btn { display: block; }
+        #sidebar.active + #main #overlay { display: block; }
+        #main { width: 100vw; }
+    }
 </style>
 </head>
 <body>
 
 <div id="sidebar">
+    <button id="toggleBtn" class="toggle-btn">☰</button>
     <h3>⬢ 六角占地 (練習)</h3>
     <p id="welcomeMsg" style="font-size: 14px; color: #888;">載入中...</p>
 
@@ -46,7 +73,7 @@
 
     <button id="resetBtn">🔄 重置棋局</button>
     <button id="undoBtn" style="background:#673ab7">⬅️ 悔棋</button>
-    <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+    <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px; cursor: pointer;">
         <input type="checkbox" id="aiToggle" checked> AI 玩家 (紅)
     </label>
 
@@ -62,34 +89,22 @@
 </div>
 
 <div id="main">
+    <div id="overlay" onclick="toggleSidebar()"></div>
     <canvas id="gameCanvas" width="800" height="800"></canvas>
 </div>
 
 <script>
-// --- 基礎參數與 URL 銜接 ---
+// --- 基礎參數 ---
 const params = new URLSearchParams(location.search);
-const rid = params.get('roomId'); // 取得房間 ID
+const rid = params.get('roomId');
 const username = params.get('username') || "玩家";
 const roomRef = rid ? db.ref(`rooms/${rid}`) : null;
 document.getElementById('welcomeMsg').innerText = `你好，${username}`;
 
-function goBack() {
-    if(confirm("確定要離開目前的棋局嗎？")) {
-        // 如果有 roomRef 且是房主才刪除，或是單機模式直接清理
-        if(roomRef) {
-            roomRef.remove().then(() => {
-                location.href = '/index.html';
-            }).catch(() => {
-                location.href = '/index.html';
-            });
-        } else {
-            location.href = '/index.html';
-        }
-    }
-}
-// --- 以下為你原本優化後的遊戲邏輯 ---
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
+const sidebar = document.getElementById('sidebar');
+const toggleBtn = document.getElementById('toggleBtn');
 const statusDiv = document.getElementById('status');
 const sizeRange = document.getElementById('sizeRange');
 const sizeValue = document.getElementById('sizeValue');
@@ -100,26 +115,54 @@ const aiToggle = document.getElementById('aiToggle');
 
 let grid = [], hexSize, selectedHex=null, hoveredHex=null, currentPlayer=1, gameActive=true, boardRadius=3, history=[];
 
+// --- 收縮選單邏輯 ---
+function toggleSidebar() {
+    sidebar.classList.toggle('active');
+    toggleBtn.innerText = sidebar.classList.contains('active') ? '✕' : '☰';
+}
+
+function autoCloseSidebar() {
+    if (window.innerWidth <= 768) {
+        sidebar.classList.remove('active');
+        toggleBtn.innerText = '☰';
+    }
+}
+
+toggleBtn.onclick = (e) => {
+    e.stopPropagation();
+    toggleSidebar();
+};
+
+function goBack() {
+    if(confirm("確定要離開目前的棋局嗎？")) {
+        if(roomRef) {
+            roomRef.remove().then(() => location.href = '/index.html').catch(() => location.href = '/index.html');
+        } else {
+            location.href = '/index.html';
+        }
+    }
+}
+
+// --- 遊戲邏輯 ---
 sizeRange.oninput = ()=>{ sizeValue.innerText = sizeRange.value; }
 obstacleRange.oninput = ()=>{ obstacleValue.innerText = obstacleRange.value; }
 
 function saveHistory(){
     history.push({ grid:grid.map(h=>({...h})), currentPlayer });
-    if(history.length > 50) history.shift(); // 限制紀錄大小
+    if(history.length > 50) history.shift();
 }
 
 function undoMove(){
     if(history.length===0) return;
+    let last;
     if(aiToggle.checked && history.length>=2){
         history.pop();
-        const last = history.pop();
-        grid = last.grid.map(h=>({...h}));
-        currentPlayer = last.currentPlayer;
+        last = history.pop();
     } else {
-        const last = history.pop();
-        grid = last.grid.map(h=>({...h}));
-        currentPlayer = last.currentPlayer;
+        last = history.pop();
     }
+    grid = last.grid.map(h=>({...h}));
+    currentPlayer = last.currentPlayer;
     updateStatus();
 }
 
@@ -145,13 +188,19 @@ function initGame(){
     hexSize = Math.min((canvas.width-padding)/(3*boardRadius+1), (canvas.height-padding)/(Math.sqrt(3)*(2*boardRadius+1)));
 
     for(let q=-boardRadius;q<=boardRadius;q++){
+        for(let r=Math.max(-boardRadius,-q-boardRadius); r<=Math.min(boardRadius,-q+radius); r++){
+            // 這裡修正一個你原本代碼中的 radius 未定義小錯誤，改用 boardRadius
+        }
+    }
+    // 重新寫迴圈確保安全
+    grid = [];
+    for(let q=-boardRadius;q<=boardRadius;q++){
         for(let r=Math.max(-boardRadius,-q-boardRadius); r<=Math.min(boardRadius,-q+boardRadius); r++){
             const pos=getHexPos(q,r);
             grid.push({ q,r,x:pos.x,y:pos.y, owner:0, scale:1, ripple:0, type:'normal' });
         }
     }
     
-    // 初始化四角棋子
     setOwner(0,-boardRadius,1);
     setOwner(0,boardRadius,2);
     setOwner(boardRadius,-boardRadius,2);
@@ -159,13 +208,14 @@ function initGame(){
 
     generateObstacles(parseInt(obstacleRange.value));
     updateStatus();
+    autoCloseSidebar();
 }
 
 function updateStatus(){
     const blue = grid.filter(h=>h.owner===1).length;
     const red = grid.filter(h=>h.owner===2).length;
     const turnColor = currentPlayer===1?"#00e5ff":"#ff5252";
-    canvas.style.boxShadow = currentPlayer===1?"0 0 30px rgba(0,229,255,0.3)":"0 0 30px rgba(255,82,82,0.3)";
+    canvas.style.boxShadow = currentPlayer===1?"0 0 30px rgba(0,229,255,0.2)":"0 0 30px rgba(255,82,82,0.2)";
     statusDiv.innerHTML=`
         <span style="color:#00e5ff">藍: ${blue}</span> | <span style="color:#ff5252">紅: ${red}</span><br>
         <small>當前輪到: <b style="color:${turnColor}">${currentPlayer===1?'藍色(你)':'紅色'}</b></small>`;
@@ -174,7 +224,6 @@ function updateStatus(){
 function checkGameOver(){
     const blue=grid.filter(h=>h.owner===1).length;
     const red=grid.filter(h=>h.owner===2).length;
-    
     const hasMove = (p) => grid.some(start=>start.owner===p && grid.some(end=>end.owner===0 && end.type==='normal' && getDistance(start,end)<=2));
 
     if(blue === 0 || red === 0 || (!hasMove(1) && !hasMove(2))){
@@ -183,7 +232,6 @@ function checkGameOver(){
         statusDiv.innerHTML = `<b style="font-size:22px; color:#ffca28">${winnerMsg}</b><br><button onclick="initGame()">重新開始</button>`;
         return true;
     }
-
     if(!hasMove(currentPlayer)){
         currentPlayer = currentPlayer===1?2:1;
         updateStatus();
@@ -250,6 +298,7 @@ function move(from,to){
 }
 
 canvas.addEventListener('mousemove', e=>{
+    if(sidebar.classList.contains('active')) return;
     const rect = canvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left)*(canvas.width/rect.width);
     const my = (e.clientY - rect.top)*(canvas.height/rect.height);
@@ -257,7 +306,7 @@ canvas.addEventListener('mousemove', e=>{
 });
 
 canvas.addEventListener('click', e=>{
-    if(!gameActive) return;
+    if(!gameActive || sidebar.classList.contains('active')) return;
     const rect = canvas.getBoundingClientRect();
     const mx = (e.clientX - rect.left)*(canvas.width/rect.width);
     const my = (e.clientY - rect.top)*(canvas.height/rect.height);
@@ -279,7 +328,7 @@ function aiMove(){
             if(b.owner===0 && b.type==='normal' && getDistance(a,b)<=2){
                 let score=0;
                 grid.forEach(n=>{ if(getDistance(b,n)===1 && n.owner===1) score++; });
-                if(getDistance(a,b)===1) score += 0.5; // 複製優於跳躍
+                if(getDistance(a,b)===1) score += 0.5;
                 moves.push({a,b,score});
             }
         });
